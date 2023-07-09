@@ -159,8 +159,12 @@ impl AngularWorker {
 			)?;
 
 			main.push_str(
-                format!("\nimport {{CodeBlock as CodeBlock_{0}}} from './component_{0}';\nvoid bootstrapApplication(CodeBlock_{0}, {{providers}});\n", index + 1).as_str()
-            );
+        format!(
+					"\nimport {{{1} as CodeBlock_{0}}} from './component_{0}';\nvoid bootstrapApplication(CodeBlock_{0}, {{providers}});\n",
+					index + 1,
+					file.class_name,
+				).as_str()
+			);
 		}
 
 		fs::write(Path::join(&project_root, "main.ts"), main)?;

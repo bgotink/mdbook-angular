@@ -38,7 +38,7 @@ import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
   template: `<p>{{counter()}} <button (click)="increase()">increase</button></p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CodeBlock {
+export class TestComponent {
   counter = signal(0);
 
   increase() {

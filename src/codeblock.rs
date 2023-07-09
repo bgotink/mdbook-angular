@@ -16,17 +16,27 @@ use swc_ecmascript::{
 	visit::VisitWith,
 };
 
+pub(crate) struct PlaygroundInput {
+	pub(crate) name: String,
+	pub(crate) default_value: Option<String>,
+	pub(crate) description: Option<String>,
+}
+
 struct CodeBlockVisitor {
 	index: usize,
 	source: Rc<String>,
 	source_file: SourceFile,
+	comments: SingleThreadedComments,
 
 	tag: Option<String>,
+	class_name: Option<String>,
+	inputs: Vec<PlaygroundInput>,
 }
 
 impl CodeBlockVisitor {
 	fn visit_exported_class(&mut self, n: &swc_ecmascript::ast::ClassDecl) {
-		log::debug!("visiting class {}", n.ident);
+		let name = n.ident.sym.to_string();
+		log::debug!("visiting class {}", &name);
 		let n = &n.class;
 		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
 
@@ -65,7 +75,7 @@ impl CodeBlockVisitor {
 								self.tag = Some(value.to_string());
 							}
 
-							return;
+							break;
 						}
 
 						self.tag = Some(format!("codeblock-{}", self.index));
@@ -94,19 +104,20 @@ impl CodeBlockVisitor {
 							self.source =
 								Rc::new(vec![before, &insert, after].into_iter().collect());
 						} else {
-							log::warn!(
-								"Failed to insert selector {} into code block",
-								self.tag.as_ref().unwrap()
-							);
+							log::warn!("Empty @Component() is not supported");
 						}
 
-						return;
+						break;
 					}
 				}
 			}
 		}
 
-		self.tag = Some(format!("codeblock-{}", self.index));
+		if self.tag == None {
+			return;
+		}
+
+		self.class_name = Some(name);
 	}
 }
 
@@ -123,6 +134,7 @@ impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 pub(crate) struct CodeBlock {
 	pub(crate) source: String,
 	pub(crate) tag: String,
+	pub(crate) class_name: String,
 }
 
 impl CodeBlock {
@@ -161,6 +173,7 @@ impl CodeBlock {
 			source,
 			source_file,
 			tag: None,
+			class_name: None,
 		};
 
 		HANDLER.set(&handler, || program.visit_with(&mut code_block));
@@ -170,6 +183,9 @@ impl CodeBlock {
 			tag: code_block
 				.tag
 				.ok_or(Error::msg("Failed to find component selector"))?,
+			class_name: code_block
+				.class_name
+				.ok_or(Error::msg("Failed to find component class name"))?,
 		})
 	}
 }
