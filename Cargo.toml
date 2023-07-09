@@ -1,0 +1,22 @@
+[package]
+name = "mdbook-angular"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bram Gotink <bram@bram.dev>"]
+license = "EUPL-1.2"
+description = "mdbook renderer to run angular code samples"
+repository = "https://github.com/bgotink/mdbook-angular"
+keywords = ["mdbook", "angular"]
+categories = ["text-processing"]
+
+[dependencies]
+env_logger = "0.9.*"
+log = "0.4.*"
+mdbook = "0.4.*"
+regex = "1.*"
+serde_json = "1.*"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.5.*"
+pulldown-cmark = "0.9.3"
+pulldown-cmark-to-cmark = "10.0.4"
+pathdiff = "0.2.1"
