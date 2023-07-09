@@ -6,7 +6,7 @@ This is a test of the alarm system
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 
 @Component({
-  selector: 'codeblock-1',
+  selector: 'codeblock-0',
   standalone: true,
   template: `<p>It's working!</p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,7 +20,6 @@ more test stuff
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 
 @Component({
-  selector: 'codeblock-2',
   standalone: true,
   template: `<p>It's working well!</p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,7 +33,7 @@ even more test stuff
 import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
 
 @Component({
-  selector: 'codeblock-3',
+  selector: 'my-test',
   standalone: true,
   template: `<p>{{counter()}} <button (click)="increase()">increase</button></p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
