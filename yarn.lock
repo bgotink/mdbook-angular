@@ -3039,9 +3039,9 @@ __metadata:
   linkType: hard
 
 "caniuse-lite@npm:^1.0.30001464, caniuse-lite@npm:^1.0.30001503":
-  version: 1.0.30001513
-  resolution: "caniuse-lite@npm:1.0.30001513"
-  checksum: 7d783f4f40584e7bdeda3f3abc23ffff21f14c37e1fadf1a6b3d2e299727fe9d5a61096101d9d4e4174f881d4ff4c62204fc41f3bc950f4da1b0edfdea025fa4
+  version: 1.0.30001514
+  resolution: "caniuse-lite@npm:1.0.30001514"
+  checksum: ee2e90fe63cb59fb4a1515eb6b157f1c26d3ccba496b994b0f03088c39c282ee2fb8c160ad7b677ee196b5bb078b23f2f9474c32e4e47724f4d782de92bb8bbe
   languageName: node
   linkType: hard
 
@@ -3103,6 +3103,13 @@ __metadata:
   version: 1.0.3
   resolution: "chrome-trace-event@npm:1.0.3"
   checksum: cb8b1fc7e881aaef973bd0c4a43cd353c2ad8323fb471a041e64f7c2dd849cde4aad15f8b753331a32dda45c973f032c8a03b8177fc85d60eaa75e91e08bfb97
+  languageName: node
+  linkType: hard
+
+"ci-info@npm:^3.2.0":
+  version: 3.8.0
+  resolution: "ci-info@npm:3.8.0"
+  checksum: d0a4d3160497cae54294974a7246202244fff031b0a6ea20dd57b10ec510aa17399c41a1b0982142c105f3255aff2173e5c0dd7302ee1b2f28ba3debda375098
   languageName: node
   linkType: hard
 
@@ -4532,6 +4539,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"husky@npm:8.0.3":
+  version: 8.0.3
+  resolution: "husky@npm:8.0.3"
+  bin:
+    husky: lib/bin.js
+  checksum: 837bc7e4413e58c1f2946d38fb050f5d7324c6f16b0fd66411ffce5703b294bd21429e8ba58711cd331951ee86ed529c5be4f76805959ff668a337dbfa82a1b0
+  languageName: node
+  linkType: hard
+
 "iconv-lite@npm:0.4.24, iconv-lite@npm:^0.4.24":
   version: 0.4.24
   resolution: "iconv-lite@npm:0.4.24"
@@ -4710,6 +4726,17 @@ __metadata:
   dependencies:
     binary-extensions: ^2.0.0
   checksum: 84192eb88cff70d320426f35ecd63c3d6d495da9d805b19bc65b518984b7c0760280e57dbf119b7e9be6b161784a5a673ab2c6abe83abb5198a432232ad5b35c
+  languageName: node
+  linkType: hard
+
+"is-ci@npm:3.0.1":
+  version: 3.0.1
+  resolution: "is-ci@npm:3.0.1"
+  dependencies:
+    ci-info: ^3.2.0
+  bin:
+    is-ci: bin.js
+  checksum: 192c66dc7826d58f803ecae624860dccf1899fc1f3ac5505284c0a5cf5f889046ffeb958fa651e5725d5705c5bcb14f055b79150ea5fcad7456a9569de60260e
   languageName: node
   linkType: hard
 
@@ -6565,16 +6592,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
-    "@angular-devkit/build-angular": ^16.1.4
-    "@angular/cli": ^16.1.4
-    "@angular/common": ^16.1.4
-    "@angular/compiler": ^16.1.4
-    "@angular/compiler-cli": ^16.1.4
-    "@angular/core": ^16.1.4
-    "@angular/platform-browser": ^16.1.4
-    rxjs: ^7.8.1
-    typescript: ^5.1.6
-    zone.js: ^0.13.1
+    husky: 8.0.3
+    is-ci: 3.0.1
   languageName: unknown
   linkType: soft
 
@@ -7253,6 +7272,23 @@ __metadata:
   checksum: 50988412533bfd5a07294df002d772ad5b1277a9d1164dd19c8876a2094ced7b78fcf36cb32122a9a5238ba2597d77178a2385dfc6c4d506622309493f613cf4
   languageName: node
   linkType: hard
+
+"test-book-33d7e3@workspace:test-book":
+  version: 0.0.0-use.local
+  resolution: "test-book-33d7e3@workspace:test-book"
+  dependencies:
+    "@angular-devkit/build-angular": ^16.1.4
+    "@angular/cli": ^16.1.4
+    "@angular/common": ^16.1.4
+    "@angular/compiler": ^16.1.4
+    "@angular/compiler-cli": ^16.1.4
+    "@angular/core": ^16.1.4
+    "@angular/platform-browser": ^16.1.4
+    rxjs: ^7.8.1
+    typescript: ^5.1.6
+    zone.js: ^0.13.1
+  languageName: unknown
+  linkType: soft
 
 "test-exclude@npm:^6.0.0":
   version: 6.0.0

@@ -3,7 +3,10 @@ use std::{io, rc::Rc};
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use swc_common::{
+	comments::{Comments, SingleThreadedComments},
 	errors::{Handler, HANDLER},
 	source_map::Pos,
 	FileName, SourceFile, Spanned,
@@ -16,10 +19,30 @@ use swc_ecmascript::{
 	visit::VisitWith,
 };
 
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum PlaygroundInputType {
+	#[default]
+	Text,
+	Number,
+	Boolean,
+	Enum(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+pub(crate) struct PlaygroundInputConfig {
+	#[serde(rename = "type", default)]
+	pub(crate) _type: PlaygroundInputType,
+
+	#[serde(rename = "default")]
+	pub(crate) default_value: Option<Value>,
+}
+
+#[derive(Debug)]
 pub(crate) struct PlaygroundInput {
 	pub(crate) name: String,
-	pub(crate) default_value: Option<String>,
 	pub(crate) description: Option<String>,
+	pub(crate) config: PlaygroundInputConfig,
 }
 
 struct CodeBlockVisitor {
@@ -35,10 +58,13 @@ struct CodeBlockVisitor {
 
 impl CodeBlockVisitor {
 	fn visit_exported_class(&mut self, n: &swc_ecmascript::ast::ClassDecl) {
+		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
+		static COMMENT_LINE_PREAMBLE: Lazy<Regex> =
+			Lazy::new(|| Regex::new(r#"^\s*\*\s*"#).unwrap());
+
 		let name = n.ident.sym.to_string();
 		log::debug!("visiting class {}", &name);
 		let n = &n.class;
-		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
 
 		for decorator in n.decorators.iter() {
 			if let Some(call) = decorator.expr.as_call() {
@@ -118,6 +144,62 @@ impl CodeBlockVisitor {
 		}
 
 		self.class_name = Some(name);
+
+		for member in n.body.iter() {
+			log::debug!("class member");
+
+			let decorators = match get_decorators(member) {
+				Some(d) => d,
+				_ => continue,
+			};
+
+			log::debug!("found {} decorators", decorators.len());
+
+			if includes_decorator_with_name(&decorators, "Input") {
+				let name = match prop_name(&member) {
+					Some(name) => name,
+					_ => continue,
+				};
+
+				let mut input = PlaygroundInput {
+					name,
+					description: None,
+					config: Default::default(),
+				};
+
+				let leading_comment = self
+					.comments
+					.get_leading(member.span_lo())
+					.and_then(|list| list.into_iter().next());
+
+				if let Some(comment) = leading_comment {
+					let comment = comment.text.to_string();
+					let mut description: Vec<_> = Vec::new();
+
+					for line in comment.lines() {
+						let clean_line = COMMENT_LINE_PREAMBLE.replace(line, "");
+
+						if clean_line.starts_with("@input") {
+							match serde_json::from_str::<PlaygroundInputConfig>(&clean_line[6..]) {
+								Ok(config) => input.config = config,
+								Err(err) => {
+									log::error!("Failed to parse input `{}`: {}", clean_line, err)
+								}
+							};
+							break;
+						}
+
+						description.push(clean_line);
+					}
+
+					if !description.is_empty() {
+						input.description = Some(description.join("\n"));
+					}
+				}
+
+				self.inputs.push(input);
+			}
+		}
 	}
 }
 
@@ -131,10 +213,50 @@ impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 	}
 }
 
+fn prop_name(prop: &ast::ClassMember) -> Option<String> {
+	let key = match prop {
+		ast::ClassMember::ClassProp(ast::ClassProp { key, .. }) => key,
+		ast::ClassMember::AutoAccessor(ast::AutoAccessor {
+			key: ast::Key::Public(key),
+			..
+		}) => key,
+		_ => return None,
+	};
+
+	match key {
+		ast::PropName::Ident(ident) => Some(ident.sym.to_string()),
+		ast::PropName::Str(str) => Some(str.value.to_string()),
+		_ => None,
+	}
+}
+
+fn get_decorators(prop: &ast::ClassMember) -> Option<&Vec<ast::Decorator>> {
+	match prop {
+		ast::ClassMember::AutoAccessor(prop) => Some(&prop.decorators),
+		ast::ClassMember::ClassProp(prop) => Some(&prop.decorators),
+		_ => None,
+	}
+}
+
+fn includes_decorator_with_name(decorators: &Vec<ast::Decorator>, name: &str) -> bool {
+	decorators.iter().any(|decorator| {
+		if let Some(call) = decorator.expr.as_call() {
+			if let Some(ast::Expr::Ident(ident)) = call.callee.as_expr().map(|v| v.as_ref()) {
+				ident.sym.eq(name)
+			} else {
+				false
+			}
+		} else {
+			false
+		}
+	})
+}
+
 pub(crate) struct CodeBlock {
 	pub(crate) source: String,
 	pub(crate) tag: String,
 	pub(crate) class_name: String,
+	pub(crate) inputs: Vec<PlaygroundInput>,
 }
 
 impl CodeBlock {
@@ -150,6 +272,8 @@ impl CodeBlock {
 			swc_common::BytePos(1),
 		);
 
+		let comments = SingleThreadedComments::default();
+
 		let program = parser::parse_file_as_program(
 			&source_file,
 			Syntax::Typescript(TsConfig {
@@ -160,7 +284,7 @@ impl CodeBlock {
 				disallow_ambiguous_jsx_like: false,
 			}),
 			EsVersion::latest(),
-			None,
+			Some(&comments),
 			&mut Vec::new(),
 		)
 		.map_err(|e| {
@@ -174,6 +298,8 @@ impl CodeBlock {
 			source_file,
 			tag: None,
 			class_name: None,
+			comments,
+			inputs: Vec::new(),
 		};
 
 		HANDLER.set(&handler, || program.visit_with(&mut code_block));
@@ -186,6 +312,65 @@ impl CodeBlock {
 			class_name: code_block
 				.class_name
 				.ok_or(Error::msg("Failed to find component class name"))?,
+			inputs: code_block.inputs,
 		})
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use anyhow::Result;
+	use serde_json::{from_str, to_string, Number, Value};
+
+	use crate::codeblock::{PlaygroundInputConfig, PlaygroundInputType};
+
+	#[test]
+	fn option_json_format() -> Result<()> {
+		assert_eq!(
+			to_string(&PlaygroundInputConfig {
+				default_value: Some(Value::String("Bram".to_string())),
+				_type: PlaygroundInputType::Text,
+			})?,
+			r#"{"type":"text","default":"Bram"}"#
+		);
+
+		assert_eq!(
+			to_string(&PlaygroundInputConfig {
+				default_value: Some(Value::Number(Number::from(42))),
+				_type: PlaygroundInputType::Number,
+			})?,
+			r#"{"type":"number","default":42}"#
+		);
+
+		assert_eq!(
+			to_string(&PlaygroundInputConfig {
+				default_value: None,
+				_type: PlaygroundInputType::Boolean,
+			})?,
+			r#"{"type":"boolean","default":null}"#
+		);
+
+		assert_eq!(
+			to_string(&PlaygroundInputConfig {
+				default_value: None,
+				_type: PlaygroundInputType::Enum(vec!["one".to_string(), "two".to_string()]),
+			})?,
+			r#"{"type":{"enum":["one","two"]},"default":null}"#
+		);
+
+		Ok(())
+	}
+
+	#[test]
+	fn option_empty_type() -> Result<()> {
+		assert_eq!(
+			from_str::<PlaygroundInputConfig>("{}")?,
+			PlaygroundInputConfig {
+				default_value: None,
+				_type: PlaygroundInputType::Text,
+			},
+		);
+
+		Ok(())
 	}
 }

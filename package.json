@@ -1,0 +1,14 @@
+{
+	"private": true,
+	"workspaces": [
+		"test-book"
+	],
+	"scripts": {
+		"postinstall": "is-ci || husky init"
+	},
+	"devDependencies": {
+		"husky": "8.0.3",
+		"is-ci": "3.0.1"
+	},
+	"packageManager": "yarn@3.6.1"
+}

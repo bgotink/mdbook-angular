@@ -3,15 +3,23 @@
 This is a test of the alarm system
 
 ```ts,angular
-import {Component, ChangeDetectionStrategy} from '@angular/core';
+import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
 
 @Component({
   selector: 'codeblock-0',
   standalone: true,
-  template: `<p>It's working!</p>`,
+  template: `<p>Hi {{name}}, it's working!</p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CodeBlock {}
+export class CodeBlock {
+	/**
+	 * Person to tell it's working
+	 *
+	 * @input {"default": "Bram"}
+	 */
+	@Input()
+	name = 'Bram';
+}
 ```
 
 more test stuff
@@ -39,8 +47,13 @@ import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TestComponent {
+  /** @keep lalalal */
   counter = signal(0);
 
+  /**
+   * @keep
+   * lalalalalala
+   */
   increase() {
     this.counter.set(this.counter() + 1);
   }

@@ -24,14 +24,14 @@ fn main() -> Result<(), Error> {
 
 	let mut ctx = RenderContext::from_json(io::stdin())?;
 
-	let actual_renderer = HtmlHandlebars::new();
+	let renderer = HtmlHandlebars::new();
 	let worker = prepare(&mut ctx)?;
 
 	if let Some(value) = ctx.config.get("output.angular.html") {
 		ctx.config.set("output.html", value.clone())?;
 	}
 
-	actual_renderer.render(&ctx)?;
+	renderer.render(&ctx)?;
 
 	worker.finalize()?;
 
