@@ -1,5 +1,5 @@
 customElements.define(
-	"mdbook-angular-input",
+	'mdbook-angular-input',
 	class MdbookAngularInputElement extends HTMLElement {
 		processed = false;
 
@@ -14,41 +14,41 @@ customElements.define(
 			let input;
 			let getValue;
 
-			if (typeof config.type === "object" && "enum" in config.type) {
-				input = document.createElement("select");
+			if (typeof config.type === 'object' && 'enum' in config.type) {
+				input = document.createElement('select');
 				input.append(
-					...config.type.enum.map((value) => {
-						const option = document.createElement("option");
+					...config.type.enum.map(value => {
+						const option = document.createElement('option');
 						option.value = value;
 						option.innerText = value;
 						option.checked = value === config.default;
 						return option;
-					})
+					}),
 				);
 
 				getValue = () => input.value;
 			} else {
 				switch (config.type) {
-					case "Number": {
-						input = document.createElement("input");
-						input.type = "number";
+					case 'Number': {
+						input = document.createElement('input');
+						input.type = 'number';
 						input.valueAsNumber = config.default;
 
 						getValue = () => input.valueAsNumber;
 						break;
 					}
-					case "Boolean": {
-						input = document.createElement("input");
-						input.type = "checkbox";
+					case 'Boolean': {
+						input = document.createElement('input');
+						input.type = 'checkbox';
 						input.checked = config.default;
 
 						getValue = () => input.checked;
 						break;
 					}
 					default: {
-						input = document.createElement("input");
-						input.type = "text";
-						input.value = config.default || "";
+						input = document.createElement('input');
+						input.type = 'text';
+						input.value = config.default || '';
 
 						getValue = () => input.value;
 						break;
@@ -62,8 +62,8 @@ customElements.define(
 
 			this.append(input);
 
-			const name = this.getAttribute("name");
-			const index = +this.getAttribute("index");
+			const name = this.getAttribute('name');
+			const index = +this.getAttribute('index');
 
 			function update() {
 				let app =
@@ -74,7 +74,7 @@ customElements.define(
 					mdBookAngular.zone
 				);
 
-				app.then((app) => {
+				app.then(app => {
 					const component = app.components[0];
 
 					zone.run(() => {
@@ -93,8 +93,8 @@ customElements.define(
 				throttleTimeout = setTimeout(update, 300);
 			}
 
-			input.addEventListener("change", update);
-			input.addEventListener("input", throttledUpdate);
+			input.addEventListener('change', update);
+			input.addEventListener('input', throttledUpdate);
 		}
-	}
+	},
 );

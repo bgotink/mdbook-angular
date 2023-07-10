@@ -18,7 +18,7 @@ use crate::codeblock::CodeBlock;
 
 const TAG_ANGULAR: &str = "angular";
 
-static CODEBLOCK_IO_SCRIPT: &[u8] = include_bytes!("codeblock-io.js");
+static CODEBLOCK_IO_SCRIPT: &[u8] = include_bytes!("codeblock-io.min.js");
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 struct AngularWorkspace {
@@ -48,6 +48,8 @@ pub(crate) struct AngularWorker {
 
 	include_playgrounds: bool,
 	has_playgrounds: bool,
+
+	optimize: bool,
 }
 
 impl AngularWorker {
@@ -86,6 +88,12 @@ impl AngularWorker {
 			.and_then(|v| v.as_bool())
 			.unwrap_or(true);
 
+		let optimize = ctx
+			.config
+			.get("output.angular.optimize")
+			.and_then(|v| v.as_bool())
+			.unwrap_or(true);
+
 		Ok(AngularWorker {
 			// switch to std::path::absolute once stable
 			root: root.canonicalize()?,
@@ -97,6 +105,7 @@ impl AngularWorker {
 			index: 0,
 			include_playgrounds,
 			has_playgrounds: false,
+			optimize,
 		})
 	}
 
@@ -243,6 +252,7 @@ impl AngularWorker {
 		fs::create_dir(&project_root)?;
 
 		let mut main = String::new();
+		main.push_str("import 'zone.js';\n");
 		main.push_str("import {NgZone, ApplicationRef} from '@angular/core';\n");
 		main.push_str("import {bootstrapApplication} from '@angular/platform-browser';\n");
 		main.push_str("const zone = new NgZone({});\n");
@@ -276,6 +286,22 @@ impl AngularWorker {
 			"{\"extends\":\"../tsconfig.json\",\"files\": [\"main.ts\"]}",
 		)?;
 
+		let (optimization, output_hashing) = if self.optimize {
+			(
+				json!({
+					"scripts": true,
+					"styles": {
+						"minify": true,
+						"inlineCritical": false
+					},
+					"fonts": false
+				}),
+				json!("all"),
+			)
+		} else {
+			(json!(false), json!("none"))
+		};
+
 		let mut architect: HashMap<String, AngularWorkspaceTarget> = HashMap::new();
 		architect.insert(
 			"build".into(),
@@ -286,16 +312,8 @@ impl AngularWorker {
 					"index": format!("code_{}/index.html", index),
 					"inlineStyleLanguage": "scss", // TODO make configurable
 					"main": format!("code_{}/main.ts", index),
-					"optimization": false /*{
-						"scripts": true,
-						"styles": {
-							"minify": true,
-							"inlineCritical": false
-						},
-						"fonts": false
-					}*/,
-					// "outputHashing": "all",
-					"polyfills": ["zone.js"],
+					"optimization": optimization,
+					"outputHashing": output_hashing,
 					"progress": false,
 					"tsConfig": format!("code_{}/tsconfig.json", index)
 				}),

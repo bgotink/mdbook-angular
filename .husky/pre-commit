@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Validate rust formatting
+cargo fmt --check
+
+# Validate other formatting
+yarn express-check-in --staged
+
+# Check for duplicate dependencies
+if ! git diff --cached --quiet yarn.lock; then
+	yarn dedupe --check
+fi
