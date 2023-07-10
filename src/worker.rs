@@ -169,7 +169,7 @@ impl AngularWorker {
 									.iter()
 									.map(|input| {
 										format!(
-											"<tr><td>{}</td><td>{}</td><td><mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input></td></tr>",
+											"<tr><td><code class=\"hljs\">{}</code></td><td>{}</td><td><mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input></td></tr>",
 											&input.name,
 											input
 												.description
