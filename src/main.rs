@@ -73,7 +73,7 @@ fn prepare(ctx: &mut RenderContext) -> Result<AngularWorker, Error> {
 		if let BookItem::Chapter(ref mut chapter) = item {
 			log::debug!("Processing chapter '{}'", chapter.name);
 			if let Err(err) = worker.process_chapter(chapter) {
-				errors.push(err);
+				errors.push(err.context(format!("in chapter {}", chapter.name)));
 			}
 		}
 	});

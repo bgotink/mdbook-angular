@@ -8,8 +8,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
 	borrow::Borrow,
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fs,
+	io::{Read, Write},
 	path::{Path, PathBuf},
 	process,
 };
@@ -47,7 +48,7 @@ pub(crate) struct AngularWorker {
 	index: u32,
 
 	include_playgrounds: bool,
-	has_playgrounds: bool,
+	chapters_with_playgrounds: HashSet<PathBuf>,
 
 	optimize: bool,
 }
@@ -104,7 +105,7 @@ impl AngularWorker {
 			},
 			index: 0,
 			include_playgrounds,
-			has_playgrounds: false,
+			chapters_with_playgrounds: HashSet::new(),
 			optimize,
 		})
 	}
@@ -124,13 +125,24 @@ impl AngularWorker {
 		let mut error: Option<Error> = None;
 		let mut has_playgrounds = false;
 
+		let (can_have_playgrouds, path_to_root) = if let Some(path) = &chapter.path {
+			(true, path_to_root(path))
+		} else {
+			(false, "".into())
+		};
+
 		let events = Parser::new(&chapter.content).flat_map(|e| {
 			if let pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(
 				pulldown_cmark::CodeBlockKind::Fenced(lang),
 			)) = &e
 			{
 				current_angular_code_block = if lang.contains(TAG_ANGULAR) {
-					Some(String::new())
+					if can_have_playgrouds {
+						Some(String::new())
+					} else {
+						log::error!("Cannot add playgrounds in chapter {} as it has no path", &chapter.name);
+						None
+					}
 				} else {
 					None
 				};
@@ -321,14 +333,23 @@ impl AngularWorker {
 		);
 
 		new_content.push_str(
-			format!("\n\n<script>fetch(`${{path_to_root || '.'}}/{0}/include.html`).then(r => r.text()).then(t => Array.from(new DOMParser().parseFromString(t,'text/html').querySelectorAll('script')).forEach((s,c)=>{{c=document.createElement(s.tagName);Array.from(s.attributes).forEach(a=>c.setAttribute(a.name,a.name==='src'?`${{path_to_root || '.'}}/{0}/${{a.value}}`:a.value));document.body.appendChild(c)}}))</script>\n", &project_name).as_str()
+			format!(
+				"\n\n<script load-angular-from=\"{}\"></script>\n",
+				&project_name
+			)
+			.as_str(),
 		);
 
 		if has_playgrounds {
-			self.has_playgrounds = true;
+			self.chapters_with_playgrounds
+				.insert(chapter.path.as_ref().unwrap().clone());
 
 			new_content.push_str(
-				"<script type=\"module\">import(`${path_to_root || '.'}/codeblock-io.js`)</script>\n"
+				format!(
+					"<script type=\"module\" src=\"{}/codeblock-io.js\"></script>\n",
+					path_to_root
+				)
+				.as_str(),
 			);
 		}
 
@@ -347,12 +368,16 @@ impl AngularWorker {
 	}
 
 	pub(crate) fn finalize(&self) -> Result<(), Error> {
+		static LOAD_ANGULAR_RE: Lazy<Regex> = Lazy::new(|| {
+			Regex::new(r#"(?i)<script\s*load-angular-from="([^"]+)">\s*</script>"#).unwrap()
+		});
+		static SCRIPT_RE: Lazy<Regex> =
+			Lazy::new(|| Regex::new(r"<script[^>]*></script>").unwrap());
+
 		fs::write(
 			Path::join(&self.root, "angular.json"),
 			serde_json::to_string(&self.workspace)?,
 		)?;
-
-		let script_re = Regex::new(r"<script[^>]*></script>")?;
 
 		for project_name in self.workspace.projects.keys() {
 			let script_folder = Path::join(&self.target, project_name);
@@ -381,18 +406,55 @@ impl AngularWorker {
 					project_name
 				)));
 			}
-
-			let index: String = fs::read(Path::join(&script_folder, "index.html"))?
-				.into_iter()
-				.map(|b| -> char { b.into() })
-				.collect();
-
-			let scripts: String = script_re.find_iter(&index).map(|m| m.as_str()).collect();
-
-			fs::write(Path::join(&script_folder, "include.html"), scripts)?;
 		}
 
-		if self.has_playgrounds {
+		for chapter_path in self
+			.chapters_with_playgrounds
+			.iter()
+			.chain(vec![Path::new("index.html").to_path_buf()].iter())
+		{
+			let mut chapter_path = chapter_path.clone();
+			if !chapter_path.set_extension("html") {
+				continue;
+			}
+
+			let mut chapter_file = fs::OpenOptions::new()
+				.read(true)
+				.write(true)
+				.create(false)
+				.open(self.target.join(&chapter_path))?;
+			let mut chapter = String::new();
+			chapter_file.read_to_string(&mut chapter)?;
+
+			if let Some(captures) = LOAD_ANGULAR_RE.captures(chapter.as_str()) {
+				let project_name = captures.get(1).unwrap().as_str();
+				let script_folder = Path::join(&self.target, project_name);
+
+				let index: String = fs::read(Path::join(&script_folder, "index.html"))?
+					.into_iter()
+					.map(|b| -> char { b.into() })
+					.collect();
+
+				let scripts = SCRIPT_RE
+					.find_iter(&index)
+					.map(|m| {
+						m.as_str().replace(
+							r#"src=""#,
+							format!(r#"src="{}/{}/"#, path_to_root(&chapter_path), project_name)
+								.as_str(),
+						)
+					})
+					.collect::<String>();
+
+				chapter_file.write_all(
+					chapter
+						.replace(captures.get(0).unwrap().as_str(), scripts.as_str())
+						.as_bytes(),
+				)?;
+			};
+		}
+
+		if !self.chapters_with_playgrounds.is_empty() {
 			fs::write(
 				Path::join(&self.target, "codeblock-io.js"),
 				CODEBLOCK_IO_SCRIPT,
@@ -400,5 +462,25 @@ impl AngularWorker {
 		}
 
 		Ok(())
+	}
+}
+
+fn path_to_root(path: &PathBuf) -> String {
+	let mut parts = Vec::new();
+	let mut current = path.parent().unwrap();
+
+	while let Some(parent) = current.parent() {
+		if current == parent {
+			break;
+		}
+
+		parts.push("..");
+		current = parent;
+	}
+
+	if parts.is_empty() {
+		".".into()
+	} else {
+		parts.join("/")
 	}
 }
