@@ -3,5 +3,22 @@
 	"editor.codeActionsOnSave": {
 		"source.fixAll": true
 	},
-	"rust-analyzer.check.command": "clippy"
+	"rust-analyzer.check.command": "clippy",
+	// keep list in sync with .husky/pre-commit
+	"rust-analyzer.check.extraArgs": [
+		"--",
+		"-Wclippy::cargo",
+		"-Wclippy::pedantic",
+		// parts of clippy::restricted
+		"-Wclippy::exit",
+		"-Wclippy::expect_used",
+		"-Wclippy::panic",
+		"-Dclippy::print_stderr",
+		"-Dclippy::print_stdout",
+		"-Wclippy::semicolon_inside_block",
+		"-Wclippy::str_to_string",
+		"-Wclippy::string_to_string",
+		"-Wclippy::unnecessary_self_imports",
+		"-Wclippy::use_debug"
+	]
 }

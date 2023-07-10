@@ -5,7 +5,20 @@
 cargo fmt --check
 
 # Lint
-cargo clippy -- -Dwarnings
+# keep list in sync with .vscode/settings.json
+cargo clippy -- -Wclippy::cargo \
+		-Wclippy::pedantic \
+		-Wclippy::exit \
+		-Wclippy::expect_used \
+		-Wclippy::panic \
+		-Dclippy::print_stderr \
+		-Dclippy::print_stdout \
+		-Wclippy::semicolon_inside_block \
+		-Wclippy::str_to_string \
+		-Wclippy::string_to_string \
+		-Wclippy::unnecessary_self_imports \
+		-Wclippy::use_debug \
+		;
 
 # Validate other formatting
 yarn express-check-in --staged

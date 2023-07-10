@@ -1,6 +1,7 @@
 //! mdbook preprocessor that compiles and renders angular code samples
 
 mod codeblock;
+mod utils;
 mod worker;
 
 use std::{

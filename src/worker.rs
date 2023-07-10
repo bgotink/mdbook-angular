@@ -1,45 +1,26 @@
 extern crate alloc;
 
+use core::borrow::Borrow;
 use mdbook::{book::Chapter, errors::Error, renderer::RenderContext};
 use once_cell::sync::Lazy;
 use pulldown_cmark::{CowStr, Parser};
 use regex::Regex;
-use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::{
-	borrow::Borrow,
-	collections::{HashMap, HashSet},
+	collections::HashSet,
 	fs,
 	io::{Read, Write},
 	path::{Path, PathBuf},
-	process,
 };
 
-use crate::codeblock::CodeBlock;
+use crate::{
+	codeblock::CodeBlock,
+	utils::{generate_angular_code, path_to_root, AngularWorkspace},
+};
 
 const TAG_ANGULAR: &str = "angular";
 
 static CODEBLOCK_IO_SCRIPT: &[u8] = include_bytes!("codeblock-io.min.js");
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-struct AngularWorkspace {
-	version: i32,
-	projects: HashMap<String, AngularWorkspaceProject>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-struct AngularWorkspaceProject {
-	root: String,
-	#[serde(rename = "projectType")]
-	project_type: String,
-	architect: HashMap<String, AngularWorkspaceTarget>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-struct AngularWorkspaceTarget {
-	builder: String,
-	options: Value,
-}
 
 pub(crate) struct AngularWorker {
 	root: PathBuf,
@@ -49,9 +30,14 @@ pub(crate) struct AngularWorker {
 
 	include_playgrounds: bool,
 	chapters_with_playgrounds: HashSet<PathBuf>,
-
-	optimize: bool,
 }
+
+static COMMENT_WITHOUT_KEEP: Lazy<Regex> = Lazy::new(|| {
+	Regex::new(r#"(\n?)\s*/\*\*(?s:@kee[^p]|@ke[^e]|@k[^e]|@[^k]|[^@])*\*/\s*?\n"#).unwrap()
+});
+static COMMENT_KEEP_START: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(/\*\*)\s*?@keep\b"#).unwrap());
+static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
+	Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
 
 impl AngularWorker {
 	pub(crate) fn new(ctx: &RenderContext) -> Result<AngularWorker, Error> {
@@ -62,6 +48,8 @@ impl AngularWorker {
 		}
 
 		root.push(".angular/mdbook");
+
+		let root = root.canonicalize()?;
 
 		if root.try_exists()? {
 			fs::remove_dir_all(&root)?;
@@ -86,49 +74,38 @@ impl AngularWorker {
 		let include_playgrounds = ctx
 			.config
 			.get("output.angular.playgrounds")
-			.and_then(|v| v.as_bool())
+			.and_then(toml::Value::as_bool)
 			.unwrap_or(true);
 
 		let optimize = ctx
 			.config
 			.get("output.angular.optimize")
-			.and_then(|v| v.as_bool())
+			.and_then(toml::Value::as_bool)
 			.unwrap_or(true);
 
 		Ok(AngularWorker {
 			// switch to std::path::absolute once stable
-			root: root.canonicalize()?,
+			root,
 			target: ctx.destination.clone(),
-			workspace: AngularWorkspace {
-				version: 1,
-				projects: HashMap::new(),
-			},
+			workspace: AngularWorkspace::new(optimize),
 			index: 0,
 			include_playgrounds,
 			chapters_with_playgrounds: HashSet::new(),
-			optimize,
 		})
 	}
 
+	#[allow(clippy::too_many_lines)]
 	pub(crate) fn process_chapter(&mut self, chapter: &mut Chapter) -> Result<(), Error> {
-		static COMMENT_WITHOUT_KEEP: Lazy<Regex> = Lazy::new(|| {
-			Regex::new(r#"(\n?)\s*/\*\*(?s:@kee[^p]|@ke[^e]|@k[^e]|@[^k]|[^@])*\*/\s*?\n"#).unwrap()
-		});
-		static COMMENT_KEEP_START: Lazy<Regex> =
-			Lazy::new(|| Regex::new(r#"(/\*\*)\s*?@keep\b"#).unwrap());
-		static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
-			Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
-
 		let mut angular_code_samples: Vec<CodeBlock> = Vec::new();
 
 		let mut current_angular_code_block: Option<String> = None;
 		let mut error: Option<Error> = None;
 		let mut has_playgrounds = false;
 
-		let (can_have_playgrouds, path_to_root) = if let Some(path) = &chapter.path {
-			(true, path_to_root(path))
+		let (can_have_playgrouds, chapter_path, path_to_root) = if let Some(path) = &chapter.path {
+			(true, path, path_to_root(path))
 		} else {
-			(false, "".into())
+			(false, &self.root, String::new())
 		};
 
 		let events = Parser::new(&chapter.content).flat_map(|e| {
@@ -150,17 +127,17 @@ impl AngularWorker {
 			}
 
 			if let pulldown_cmark::Event::Text(text) = e {
-				if let Some(current_angular_code_block) = current_angular_code_block.as_mut() {
+				return if let Some(current_angular_code_block) = current_angular_code_block.as_mut() {
 					current_angular_code_block.push_str(&text);
 
 					let text = COMMENT_WITHOUT_KEEP.replace_all(text.borrow(), "$1");
 					let text = COMMENT_KEEP_START.replace_all(&text, "$1");
 					let text = COMMENT_KEEP_MIDDLE.replace_all(&text, "$1");
 
-					return vec![pulldown_cmark::Event::Text(CowStr::from(text.to_string()))];
+					vec![pulldown_cmark::Event::Text(CowStr::from(text.to_string()))]
 				} else {
-					return vec![pulldown_cmark::Event::Text(text)];
-				}
+					vec![pulldown_cmark::Event::Text(text)]
+				};
 			}
 
 			if let pulldown_cmark::Event::End(pulldown_cmark::Tag::CodeBlock(
@@ -204,7 +181,7 @@ impl AngularWorker {
 
 								element = format!(
 									"\
-										{}\n\
+										{element}\n\
 										Inputs:\n\n\
 										<table>\
 											<thead>\
@@ -212,11 +189,9 @@ impl AngularWorker {
 												<th>Description</th>
 												<th>Value</th>
 											</thead>\
-											<tbody>{}</tbody>\
+											<tbody>{inputs}</tbody>\
 										</table>\n\n\
 									",
-									element,
-									inputs,
 								);
 							}
 
@@ -256,78 +231,9 @@ impl AngularWorker {
 		let index = self.index;
 		self.index += 1;
 
-		let project_name = format!("code_{}", index);
-		let project_root = Path::join(&self.root, &project_name);
-		fs::create_dir(&project_root)?;
+		let project_name = format!("code_{index}");
 
-		let mut main = String::new();
-		main.push_str("import 'zone.js';\n");
-		main.push_str("import {NgZone, ApplicationRef} from '@angular/core';\n");
-		main.push_str("import {bootstrapApplication} from '@angular/platform-browser';\n");
-		main.push_str("const zone = new NgZone({});\n");
-		main.push_str("const providers = [{provide: NgZone, useValue: zone}];\n");
-		main.push_str("const applications: Promise<ApplicationRef>[] = [];\n");
-		main.push_str("(globalThis as any).mdBookAngular = {zone, applications};");
-
-		for (index, file) in angular_code_samples.into_iter().enumerate() {
-			fs::write(
-				Path::join(&project_root, format!("component_{}.ts", index + 1)),
-				file.source,
-			)?;
-
-			main.push_str(
-        format!(
-					"\nimport {{{1} as CodeBlock_{0}}} from './component_{0}';\napplications.push(bootstrapApplication(CodeBlock_{0}, {{providers}}));\n",
-					index + 1,
-					file.class_name,
-				).as_str()
-			);
-		}
-
-		fs::write(Path::join(&project_root, "main.ts"), main)?;
-
-		fs::write(
-			Path::join(&project_root, "index.html"),
-			"<!doctype html>\n<html></html>\n",
-		)?;
-		fs::write(
-			Path::join(&project_root, "tsconfig.json"),
-			"{\"extends\":\"../tsconfig.json\",\"files\": [\"main.ts\"]}",
-		)?;
-
-		let (optimization, output_hashing) = if self.optimize {
-			(
-				json!({
-					"scripts": true,
-					"styles": {
-						"minify": true,
-						"inlineCritical": false
-					},
-					"fonts": false
-				}),
-				json!("all"),
-			)
-		} else {
-			(json!(false), json!("none"))
-		};
-
-		let mut architect: HashMap<String, AngularWorkspaceTarget> = HashMap::new();
-		architect.insert(
-			"build".into(),
-			AngularWorkspaceTarget {
-				builder: "@angular-devkit/build-angular:browser-esbuild".into(),
-				options: json!({
-					"commonChunk": false,
-					"index": format!("code_{}/index.html", index),
-					"inlineStyleLanguage": "scss", // TODO make configurable
-					"main": format!("code_{}/main.ts", index),
-					"optimization": optimization,
-					"outputHashing": output_hashing,
-					"progress": false,
-					"tsConfig": format!("code_{}/tsconfig.json", index)
-				}),
-			},
-		);
+		generate_angular_code(&self.root.join(&project_name), angular_code_samples)?;
 
 		new_content.push_str(
 			format!(
@@ -338,13 +244,11 @@ impl AngularWorker {
 		);
 
 		if has_playgrounds {
-			self.chapters_with_playgrounds
-				.insert(chapter.path.as_ref().unwrap().clone());
+			self.chapters_with_playgrounds.insert(chapter_path.clone());
 
 			new_content.push_str(
 				format!(
-					"<script type=\"module\" src=\"{}/codeblock-io.js\"></script>\n",
-					path_to_root
+					"<script type=\"module\" src=\"{path_to_root}/codeblock-io.js\"></script>\n"
 				)
 				.as_str(),
 			);
@@ -352,14 +256,7 @@ impl AngularWorker {
 
 		chapter.content = new_content;
 
-		self.workspace.projects.insert(
-			project_name.clone(),
-			AngularWorkspaceProject {
-				root: project_name,
-				project_type: "application".into(),
-				architect,
-			},
-		);
+		self.workspace.add_project(&project_name);
 
 		Ok(())
 	}
@@ -371,38 +268,10 @@ impl AngularWorker {
 		static SCRIPT_RE: Lazy<Regex> =
 			Lazy::new(|| Regex::new(r"<script[^>]*></script>").unwrap());
 
-		fs::write(
-			Path::join(&self.root, "angular.json"),
-			serde_json::to_string(&self.workspace)?,
-		)?;
+		let runner = self.workspace.write(&self.root, &self.target)?;
 
-		for project_name in self.workspace.projects.keys() {
-			let script_folder = Path::join(&self.target, project_name);
-
-			let relative_script_folder = pathdiff::diff_paths(&script_folder, &self.root)
-				.ok_or(Error::msg("Failed to compute relative output path"))?;
-			let relative_script_folder_str = relative_script_folder
-				.to_str()
-				.ok_or(Error::msg("Failed to represent output path as string"))?;
-
-			if !process::Command::new("yarn")
-				.args([
-					"ng",
-					"build",
-					project_name.as_str(),
-					"--output-path",
-					relative_script_folder_str,
-				])
-				.current_dir(&self.root)
-				.stdout(process::Stdio::inherit())
-				.status()?
-				.success()
-			{
-				return Err(Error::msg(format!(
-					"Failed to build project {}",
-					project_name
-				)));
-			}
+		for project_name in self.workspace.projects() {
+			runner.run(project_name)?;
 		}
 
 		for chapter_path in self
@@ -459,25 +328,5 @@ impl AngularWorker {
 		}
 
 		Ok(())
-	}
-}
-
-fn path_to_root(path: &Path) -> String {
-	let mut parts = Vec::new();
-	let mut current = path.parent().unwrap();
-
-	while let Some(parent) = current.parent() {
-		if current == parent {
-			break;
-		}
-
-		parts.push("..");
-		current = parent;
-	}
-
-	if parts.is_empty() {
-		".".into()
-	} else {
-		parts.join("/")
 	}
 }
