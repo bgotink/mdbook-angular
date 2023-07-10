@@ -9,7 +9,7 @@ use serde_json::json;
 use std::{
 	collections::HashSet,
 	fs,
-	io::{Read, Write},
+	io::{Read, Seek, Write},
 	path::{Path, PathBuf},
 };
 
@@ -312,6 +312,7 @@ impl AngularWorker {
 					})
 					.collect::<String>();
 
+				chapter_file.rewind()?;
 				chapter_file.write_all(
 					chapter
 						.replace(captures.get(0).unwrap().as_str(), scripts.as_str())
