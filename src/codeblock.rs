@@ -176,10 +176,8 @@ impl CodeBlockVisitor {
 		self.inputs.push(input);
 	}
 
-	fn visit_exported_class(&mut self, n: &swc_ecmascript::ast::ClassDecl) {
-		let name = n.ident.sym.to_string();
-		log::debug!("visiting class {name}");
-		let n = &n.class;
+	fn visit_exported_class(&mut self, name: String, n: &ast::Class) {
+		log::debug!(r#"visiting class "{name}""#);
 
 		for decorator in &n.decorators {
 			if let Some(call) = decorator.expr.as_call() {
@@ -209,11 +207,24 @@ impl CodeBlockVisitor {
 
 impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 	fn visit_export_decl(&mut self, n: &ast::ExportDecl) {
-		if self.tag.is_some() || !n.decl.is_class() {
+		if self.tag.is_some() {
 			return;
 		}
 
-		self.visit_exported_class(n.decl.as_class().unwrap());
+		let Some(n) = n.decl.as_class() else { return };
+		let name = n.ident.sym.to_string();
+
+		self.visit_exported_class(name, &n.class);
+	}
+
+	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) {
+		if self.tag.is_some() {
+			return;
+		}
+
+		let Some(n) = n.decl.as_class() else { return };
+
+		self.visit_exported_class("default".to_owned(), &n.class);
 	}
 }
 
