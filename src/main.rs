@@ -78,7 +78,7 @@ fn prepare(ctx: &mut RenderContext) -> Result<AngularWorker, Error> {
 		}
 	});
 
-	for error in errors.into_iter() {
+	if let Some(error) = errors.into_iter().next() {
 		return Err(error);
 	}
 

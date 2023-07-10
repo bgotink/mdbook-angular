@@ -151,7 +151,7 @@ impl AngularWorker {
 
 			if let pulldown_cmark::Event::Text(text) = e {
 				if let Some(current_angular_code_block) = current_angular_code_block.as_mut() {
-					current_angular_code_block.push_str(&text.to_string());
+					current_angular_code_block.push_str(&text);
 
 					let text = COMMENT_WITHOUT_KEEP.replace_all(text.borrow(), "$1");
 					let text = COMMENT_KEEP_START.replace_all(&text, "$1");
@@ -178,7 +178,7 @@ impl AngularWorker {
 
 					let index = angular_code_samples.len();
 
-					match CodeBlock::new(&angular_code, index) {
+					match CodeBlock::new(angular_code, index) {
 						Ok(sample) => {
 							let mut element = format!("<{0}></{0}>\n", &sample.tag);
 
@@ -194,32 +194,29 @@ impl AngularWorker {
 											&input.name,
 											input
 												.description
-												.as_ref()
-												.map(|s| s.as_str())
+												.as_deref()
 												.unwrap_or(""),
 											index,
-											serde_json::to_string(&input.config).unwrap().replace("<", "&lt;")
+											serde_json::to_string(&input.config).unwrap().replace('<', "&lt;")
 										)
 									})
 									.collect::<String>();
 
 								element = format!(
-									"{}\n{}",
+									"\
+										{}\n\
+										Inputs:\n\n\
+										<table>\
+											<thead>\
+												<th>Name</th>
+												<th>Description</th>
+												<th>Value</th>
+											</thead>\
+											<tbody>{}</tbody>\
+										</table>\n\n\
+									",
 									element,
-									format!(
-										"\
-											Inputs:\n\n\
-											<table>\
-												<thead>\
-													<th>Name</th>
-													<th>Description</th>
-													<th>Value</th>
-												</thead>\
-												<tbody>{}</tbody>\
-											</table>\n\n\
-										",
-										inputs,
-									)
+									inputs,
 								);
 							}
 
@@ -242,7 +239,7 @@ impl AngularWorker {
 				current_angular_code_block = None;
 			}
 
-			return vec![e];
+			vec![e]
 		});
 
 		let mut new_content: String = String::with_capacity(chapter.content.len());
@@ -465,7 +462,7 @@ impl AngularWorker {
 	}
 }
 
-fn path_to_root(path: &PathBuf) -> String {
+fn path_to_root(path: &Path) -> String {
 	let mut parts = Vec::new();
 	let mut current = path.parent().unwrap();
 

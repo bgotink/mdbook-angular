@@ -4,6 +4,9 @@
 # Validate rust formatting
 cargo fmt --check
 
+# Lint
+cargo clippy -- -Dwarnings
+
 # Validate other formatting
 yarn express-check-in --staged
 

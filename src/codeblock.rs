@@ -139,7 +139,7 @@ impl CodeBlockVisitor {
 			}
 		}
 
-		if self.tag == None {
+		if self.tag.is_none() {
 			return;
 		}
 
@@ -155,8 +155,8 @@ impl CodeBlockVisitor {
 
 			log::debug!("found {} decorators", decorators.len());
 
-			if includes_decorator_with_name(&decorators, "Input") {
-				let name = match prop_name(&member) {
+			if includes_decorator_with_name(decorators, "Input") {
+				let name = match prop_name(member) {
 					Some(name) => name,
 					_ => continue,
 				};
@@ -179,8 +179,8 @@ impl CodeBlockVisitor {
 					for line in comment.lines() {
 						let clean_line = COMMENT_LINE_PREAMBLE.replace(line, "");
 
-						if clean_line.starts_with("@input") {
-							match serde_json::from_str::<PlaygroundInputConfig>(&clean_line[6..]) {
+						if let Some(config) = clean_line.strip_prefix("@input") {
+							match serde_json::from_str::<PlaygroundInputConfig>(config) {
 								Ok(config) => input.config = config,
 								Err(err) => {
 									log::error!("Failed to parse input `{}`: {}", clean_line, err)
@@ -205,7 +205,7 @@ impl CodeBlockVisitor {
 
 impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 	fn visit_export_decl(&mut self, n: &ast::ExportDecl) {
-		if self.tag != None || !n.decl.is_class() {
+		if self.tag.is_some() || !n.decl.is_class() {
 			return;
 		}
 
@@ -238,7 +238,7 @@ fn get_decorators(prop: &ast::ClassMember) -> Option<&Vec<ast::Decorator>> {
 	}
 }
 
-fn includes_decorator_with_name(decorators: &Vec<ast::Decorator>, name: &str) -> bool {
+fn includes_decorator_with_name(decorators: &[ast::Decorator], name: &str) -> bool {
 	decorators.iter().any(|decorator| {
 		if let Some(call) = decorator.expr.as_call() {
 			if let Some(ast::Expr::Ident(ident)) = call.callee.as_expr().map(|v| v.as_ref()) {
@@ -260,9 +260,9 @@ pub(crate) struct CodeBlock {
 }
 
 impl CodeBlock {
-	pub(crate) fn new(source: &String, index: usize) -> Result<CodeBlock> {
+	pub(crate) fn new(source: &str, index: usize) -> Result<CodeBlock> {
 		let handler = Handler::with_emitter_writer(Box::new(io::stderr()), None);
-		let source = Rc::new(source.clone());
+		let source = Rc::new(source.to_string());
 
 		let source_file = SourceFile::new_from(
 			FileName::Anon,
