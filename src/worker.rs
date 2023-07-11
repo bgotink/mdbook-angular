@@ -1,5 +1,6 @@
 extern crate alloc;
 
+use anyhow::Result;
 use core::borrow::Borrow;
 use mdbook::{book::Chapter, errors::Error, renderer::RenderContext};
 use once_cell::sync::Lazy;
@@ -15,7 +16,7 @@ use std::{
 
 use crate::{
 	codeblock::CodeBlock,
-	utils::{generate_angular_code, path_to_root, AngularWorkspace},
+	utils::{generate_angular_code, generated_rendered_code_block, path_to_root, AngularWorkspace},
 };
 
 const TAG_ANGULAR: &str = "angular";
@@ -40,7 +41,7 @@ static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
 	Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
 
 impl AngularWorker {
-	pub(crate) fn new(ctx: &RenderContext) -> Result<AngularWorker, Error> {
+	pub(crate) fn new(ctx: &RenderContext) -> Result<AngularWorker> {
 		let mut root = ctx.root.clone();
 
 		if let Some(toml::Value::String(angular_root)) = ctx.config.get("output.angular.root") {
@@ -84,7 +85,6 @@ impl AngularWorker {
 			.unwrap_or(true);
 
 		Ok(AngularWorker {
-			// switch to std::path::absolute once stable
 			root,
 			target: ctx.destination.clone(),
 			workspace: AngularWorkspace::new(optimize),
@@ -94,19 +94,15 @@ impl AngularWorker {
 		})
 	}
 
-	#[allow(clippy::too_many_lines)]
-	pub(crate) fn process_chapter(&mut self, chapter: &mut Chapter) -> Result<(), Error> {
-		let mut angular_code_samples: Vec<CodeBlock> = Vec::new();
+	pub(crate) fn process_chapter(&mut self, chapter: &mut Chapter) -> Result<()> {
+		let Some(chapter_path) = &chapter.path else { return Ok(()) };
+		let path_to_root = path_to_root(chapter_path);
+
+		let mut angular_code_blocks: Vec<CodeBlock> = Vec::new();
 
 		let mut current_angular_code_block: Option<String> = None;
 		let mut error: Option<Error> = None;
 		let mut has_playgrounds = false;
-
-		let (can_have_playgrouds, chapter_path, path_to_root) = if let Some(path) = &chapter.path {
-			(true, path, path_to_root(path))
-		} else {
-			(false, &self.root, String::new())
-		};
 
 		let events = Parser::new(&chapter.content).flat_map(|e| {
 			if let pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(
@@ -114,12 +110,7 @@ impl AngularWorker {
 			)) = &e
 			{
 				current_angular_code_block = if lang.contains(TAG_ANGULAR) {
-					if can_have_playgrouds {
-						Some(String::new())
-					} else {
-						log::error!("Cannot add playgrounds in chapter {} as it has no path", &chapter.name);
-						None
-					}
+					Some(String::new())
 				} else {
 					None
 				};
@@ -127,7 +118,8 @@ impl AngularWorker {
 			}
 
 			if let pulldown_cmark::Event::Text(text) = e {
-				return if let Some(current_angular_code_block) = current_angular_code_block.as_mut() {
+				return if let Some(current_angular_code_block) = current_angular_code_block.as_mut()
+				{
 					current_angular_code_block.push_str(&text);
 
 					let text = COMMENT_WITHOUT_KEEP.replace_all(text.borrow(), "$1");
@@ -153,51 +145,25 @@ impl AngularWorker {
 						self.include_playgrounds
 					};
 
-					let index = angular_code_samples.len();
+					let index = angular_code_blocks.len();
 
 					match CodeBlock::new(angular_code, index) {
-						Ok(sample) => {
-							let mut element = format!("<{0}></{0}>\n", &sample.tag);
+						Ok(code_block) => {
+							let rendered_codeblock = generated_rendered_code_block(
+								&code_block,
+								index,
+								playground,
+								&mut has_playgrounds,
+							);
 
-							if playground && !sample.inputs.is_empty() {
-								has_playgrounds = true;
+							angular_code_blocks.push(code_block);
 
-								let inputs = sample
-									.inputs
-									.iter()
-									.map(|input| {
-										format!(
-											"<tr><td><code class=\"hljs\">{}</code></td><td>{}</td><td><mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input></td></tr>",
-											&input.name,
-											input
-												.description
-												.as_deref()
-												.unwrap_or(""),
-											index,
-											serde_json::to_string(&input.config).unwrap().replace('<', "&lt;")
-										)
-									})
-									.collect::<String>();
-
-								element = format!(
-									"\
-										{element}\n\
-										Inputs:\n\n\
-										<table>\
-											<thead>\
-												<th>Name</th>
-												<th>Description</th>
-												<th>Value</th>
-											</thead>\
-											<tbody>{inputs}</tbody>\
-										</table>\n\n\
-									",
-								);
-							}
-
-							angular_code_samples.push(sample);
-
-							return vec![e, pulldown_cmark::Event::Html(CowStr::from(element))];
+							return vec![
+								e,
+								pulldown_cmark::Event::Html(CowStr::Boxed(
+									rendered_codeblock.into_boxed_str(),
+								)),
+							];
 						}
 						Err(err) => {
 							log::error!("Failed to parse angular code block\nDid you mean this to be an angular code sample?");
@@ -224,7 +190,7 @@ impl AngularWorker {
 			return Err(err);
 		}
 
-		if angular_code_samples.is_empty() {
+		if angular_code_blocks.is_empty() {
 			return Ok(());
 		}
 
@@ -233,25 +199,18 @@ impl AngularWorker {
 
 		let project_name = format!("code_{index}");
 
-		generate_angular_code(&self.root.join(&project_name), angular_code_samples)?;
+		generate_angular_code(&self.root.join(&project_name), angular_code_blocks)?;
 
-		new_content.push_str(
-			format!(
-				"\n\n<script load-angular-from=\"{}\"></script>\n",
-				&project_name
-			)
-			.as_str(),
-		);
+		new_content.push_str(&format!(
+			"\n\n<script load-angular-from=\"{project_name}\"></script>\n",
+		));
 
 		if has_playgrounds {
 			self.chapters_with_playgrounds.insert(chapter_path.clone());
 
-			new_content.push_str(
-				format!(
-					"<script type=\"module\" src=\"{path_to_root}/codeblock-io.js\"></script>\n"
-				)
-				.as_str(),
-			);
+			new_content.push_str(&format!(
+				"<script type=\"module\" src=\"{path_to_root}/codeblock-io.js\"></script>\n"
+			));
 		}
 
 		chapter.content = new_content;
@@ -261,66 +220,83 @@ impl AngularWorker {
 		Ok(())
 	}
 
-	pub(crate) fn finalize(&self) -> Result<(), Error> {
-		static LOAD_ANGULAR_RE: Lazy<Regex> = Lazy::new(|| {
-			Regex::new(r#"(?i)<script\s*load-angular-from="([^"]+)">\s*</script>"#).unwrap()
-		});
-		static SCRIPT_RE: Lazy<Regex> =
-			Lazy::new(|| Regex::new(r"<script[^>]*></script>").unwrap());
-
-		let runner = self.workspace.write(&self.root, &self.target)?;
-
-		for project_name in self.workspace.projects() {
-			runner.run(project_name)?;
-		}
+	pub(crate) fn finalize(&self) -> Result<()> {
+		self.build_angular_code()?;
 
 		for chapter_path in self
 			.chapters_with_playgrounds
 			.iter()
 			.chain(vec![Path::new("index.html").to_path_buf()].iter())
 		{
-			let mut chapter_path = chapter_path.clone();
-			if !chapter_path.set_extension("html") {
-				continue;
-			}
-
-			let mut chapter_file = fs::OpenOptions::new()
-				.read(true)
-				.write(true)
-				.create(false)
-				.open(self.target.join(&chapter_path))?;
-			let mut chapter = String::new();
-			chapter_file.read_to_string(&mut chapter)?;
-
-			if let Some(captures) = LOAD_ANGULAR_RE.captures(chapter.as_str()) {
-				let project_name = captures.get(1).unwrap().as_str();
-				let script_folder = Path::join(&self.target, project_name);
-
-				let index: String = fs::read(Path::join(&script_folder, "index.html"))?
-					.into_iter()
-					.map(|b| -> char { b.into() })
-					.collect();
-
-				let scripts = SCRIPT_RE
-					.find_iter(&index)
-					.map(|m| {
-						m.as_str().replace(
-							r#"src=""#,
-							format!(r#"src="{}/{}/"#, path_to_root(&chapter_path), project_name)
-								.as_str(),
-						)
-					})
-					.collect::<String>();
-
-				chapter_file.rewind()?;
-				chapter_file.write_all(
-					chapter
-						.replace(captures.get(0).unwrap().as_str(), scripts.as_str())
-						.as_bytes(),
-				)?;
-			};
+			self.insert_angular_scripts_into_chapter(chapter_path)?;
 		}
 
+		self.write_playground_script()?;
+
+		Ok(())
+	}
+
+	fn build_angular_code(&self) -> Result<()> {
+		let runner = self.workspace.write(&self.root, &self.target)?;
+
+		for project_name in self.workspace.projects() {
+			runner.run(project_name)?;
+		}
+
+		Ok(())
+	}
+
+	fn insert_angular_scripts_into_chapter(&self, chapter_path: &Path) -> Result<()> {
+		static LOAD_ANGULAR_RE: Lazy<Regex> = Lazy::new(|| {
+			Regex::new(r#"(?i)<script\s*load-angular-from="([^"]+)">\s*</script>"#).unwrap()
+		});
+		static SCRIPT_RE: Lazy<Regex> =
+			Lazy::new(|| Regex::new(r"<script[^>]*></script>").unwrap());
+
+		let mut chapter_path = chapter_path.to_path_buf();
+		if !chapter_path.set_extension("html") {
+			return Ok(());
+		}
+
+		let mut chapter_file = fs::OpenOptions::new()
+			.read(true)
+			.write(true)
+			.create(false)
+			.open(self.target.join(&chapter_path))?;
+		let mut chapter = String::new();
+		chapter_file.read_to_string(&mut chapter)?;
+
+		let Some(captures) = LOAD_ANGULAR_RE.captures(chapter.as_str()) else { return Ok(())};
+
+		let project_name = captures.get(1).unwrap().as_str();
+		let script_folder = Path::join(&self.target, project_name);
+
+		let index: String = fs::read(Path::join(&script_folder, "index.html"))?
+			.into_iter()
+			.map(|b| -> char { b.into() })
+			.collect();
+
+		let scripts = SCRIPT_RE
+			.find_iter(&index)
+			.map(|m| {
+				m.as_str().replace(
+					r#"src=""#,
+					format!(r#"src="{}/{}/"#, path_to_root(&chapter_path), project_name).as_str(),
+				)
+			})
+			.collect::<String>();
+
+		chapter_file.rewind()?;
+		chapter_file.write_all(
+			chapter
+				.replace(captures.get(0).unwrap().as_str(), scripts.as_str())
+				.as_bytes(),
+		)?;
+
+		Ok(())
+	}
+
+	fn write_playground_script(&self) -> Result<()> {
 		if !self.chapters_with_playgrounds.is_empty() {
 			fs::write(
 				Path::join(&self.target, "codeblock-io.js"),
