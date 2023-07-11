@@ -88,7 +88,7 @@ impl AngularWorker {
 		let Some(chapter_path) = &chapter.path else { return Ok(()) };
 		let path_to_root = path_to_root(chapter_path);
 
-		let mut collector = CodeBlockCollector::new(self.include_playgrounds);
+		let mut collector = CodeBlockCollector::new(chapter_path, self.include_playgrounds);
 
 		let events = Parser::new(&chapter.content).flat_map(|e| collector.process_event(e));
 

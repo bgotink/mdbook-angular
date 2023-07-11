@@ -24,16 +24,7 @@ export class CodeBlock {
 
 more test stuff
 
-```ts,angular
-import {Component, ChangeDetectionStrategy} from '@angular/core';
-
-@Component({
-  standalone: true,
-  template: `<p>It's working well!</p>`,
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-export class CodeBlock {}
-```
+{{#angular ./sample-2.ts}}
 
 even more test stuff
 

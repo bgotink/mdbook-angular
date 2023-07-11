@@ -1,3 +1,5 @@
+use std::{fs, path::Path};
+
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Tag};
@@ -12,30 +14,99 @@ static COMMENT_KEEP_START: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(/\*\*)\s*?@
 static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
 	Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
 
+static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
+	Regex::new(
+		r#"\{\{#angular\s+(?<path>\S+)(?<flags>(?:\s+(?:hide|no-playground|playground)?)*)\}\}"#,
+	)
+	.unwrap()
+});
+
 struct CurrentCcodeBlock {
 	language: Box<str>,
 	content: Option<Box<str>>,
 }
 
-#[derive(Default)]
-pub(crate) struct CodeBlockCollector {
+pub(crate) struct CodeBlockCollector<'a> {
 	include_playgrounds: bool,
 	has_playgrounds: bool,
+
+	path: &'a Path,
 
 	err: Option<Error>,
 	code_blocks: Vec<CodeBlock>,
 	current_code_block: Option<CurrentCcodeBlock>,
 }
 
-impl CodeBlockCollector {
-	pub(crate) fn new(include_playgrounds: bool) -> Self {
+impl<'a> CodeBlockCollector<'a> {
+	pub(crate) fn new(path: &'a Path, include_playgrounds: bool) -> Self {
 		CodeBlockCollector {
 			include_playgrounds,
-			..Default::default()
+			has_playgrounds: false,
+			path,
+
+			err: None,
+			code_blocks: Vec::new(),
+			current_code_block: None,
 		}
 	}
 
-	pub(crate) fn process_event<'a>(&mut self, event: Event<'a>) -> Vec<Event<'a>> {
+	fn store_err(&mut self, err: Error) {
+		if self.err.is_none() {
+			self.err = Some(err);
+		}
+	}
+
+	fn insert_code_block(&mut self, source: &str, lang: &str, events: &mut Vec<Event>) {
+		let add_playground = if lang.contains("no-playground") {
+			false
+		} else if lang.contains("playground") {
+			true
+		} else {
+			self.include_playgrounds
+		};
+
+		let index = self.code_blocks.len();
+
+		let code_block = match CodeBlock::new(source, index) {
+			Ok(code_block) => code_block,
+			Err(err) => {
+				log::error!("Failed to parse angular code block\nDid you mean this to be an angular code sample?");
+				self.store_err(err);
+
+				// return value won't matter, finalize() will throw the error
+				return;
+			}
+		};
+
+		let rendered_codeblock = generated_rendered_code_block(
+			&code_block,
+			index,
+			add_playground,
+			&mut self.has_playgrounds,
+		);
+
+		self.code_blocks.push(code_block);
+
+		if !lang.contains("hide") {
+			events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
+				CowStr::Boxed(lang.to_owned().into_boxed_str()),
+			))));
+
+			let text = COMMENT_WITHOUT_KEEP.replace_all(source, "$1");
+			let text = COMMENT_KEEP_START.replace_all(&text, "$1");
+			let text = COMMENT_KEEP_MIDDLE.replace_all(&text, "$1");
+
+			events.push(Event::Text(CowStr::Boxed(text.into())));
+
+			events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
+				CowStr::Boxed(lang.to_owned().into_boxed_str()),
+			))));
+		}
+
+		events.push(Event::Html(rendered_codeblock.into()));
+	}
+
+	pub(crate) fn process_event<'i>(&mut self, event: Event<'i>) -> Vec<Event<'i>> {
 		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) = event {
 			return if lang.contains("angular") {
 				self.current_code_block = Some(CurrentCcodeBlock {
@@ -55,75 +126,68 @@ impl CodeBlockCollector {
 				current_code_block.content = Some(text.into_string().into_boxed_str());
 				vec![]
 			} else {
-				vec![Event::Text(text)]
+				let mut text = text.as_ref();
+				let mut events = Vec::new();
+
+				while let Some(c) = TAG_ANGULAR.captures(text) {
+					let m = c.get(0).unwrap();
+
+					events.push(Event::Text(CowStr::Boxed(
+						text[..m.start()].to_owned().into_boxed_str(),
+					)));
+
+					let path = self.path.parent().unwrap();
+					let path = path.join(&c["path"]);
+
+					let contents = match fs::read_to_string(&path) {
+						Ok(content) => content,
+						Err(err) => {
+							self.store_err(Error::new(err).context(format!(
+								"Failed to read file angular playground at {} in {}",
+								&c["path"],
+								self.path.display()
+							)));
+
+							// we'll throw the error later anyway
+							return vec![];
+						}
+					};
+
+					let mut flags = vec!["ts", "angular"];
+					flags.append(&mut c["flags"].split_whitespace().collect::<Vec<&str>>());
+
+					self.insert_code_block(&contents, &flags.join(","), &mut events);
+
+					let end = m.end();
+					if end < text.len() {
+						text = &text[(m.end() + 1)..];
+					} else {
+						text = "";
+					}
+				}
+
+				if !text.is_empty() {
+					events.push(Event::Text(CowStr::Boxed(text.to_owned().into_boxed_str())));
+				}
+
+				events
 			};
 		}
 
 		if let pulldown_cmark::Event::End(pulldown_cmark::Tag::CodeBlock(
-			pulldown_cmark::CodeBlockKind::Fenced(lang),
+			pulldown_cmark::CodeBlockKind::Fenced(_),
 		)) = &event
 		{
-			let Some(current_code_block) = &self.current_code_block else {
+			let Some(current_code_block) = self.current_code_block.take() else {
 				return vec![event];
 			};
 
-			let Some(text) = &current_code_block.content else {
+			let Some(text) = current_code_block.content else {
 				return vec![event];
 			};
 
-			let add_playground = if lang.contains("no-playground") {
-				false
-			} else if lang.contains("playground") {
-				true
-			} else {
-				self.include_playgrounds
-			};
-
-			let index = self.code_blocks.len();
-
-			let code_block = match CodeBlock::new(text, index) {
-				Ok(code_block) => code_block,
-				Err(err) => {
-					log::error!("Failed to parse angular code block\nDid you mean this to be an angular code sample?");
-
-					if self.err.is_none() {
-						self.err = Some(err);
-					}
-
-					// return value won't matter, finalize() will throw the error
-					return vec![];
-				}
-			};
-
-			let rendered_codeblock = generated_rendered_code_block(
-				&code_block,
-				index,
-				add_playground,
-				&mut self.has_playgrounds,
-			);
-
-			self.code_blocks.push(code_block);
-
-			let mut events: Vec<Event<'a>> = Vec::new();
-
-			if !lang.contains("hide") {
-				events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
-					CowStr::Boxed(current_code_block.language.clone()),
-				))));
-
-				let text = COMMENT_WITHOUT_KEEP.replace_all(text, "$1");
-				let text = COMMENT_KEEP_START.replace_all(&text, "$1");
-				let text = COMMENT_KEEP_MIDDLE.replace_all(&text, "$1");
-
-				events.push(Event::Text(CowStr::Boxed(text.into())));
-
-				events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
-					CowStr::Boxed(current_code_block.language.clone()),
-				))));
-			}
-
-			events.push(Event::Html(rendered_codeblock.into()));
-
+			let mut events: Vec<Event<'i>> = Vec::new();
+			self.insert_code_block(&text, &current_code_block.language, &mut events);
 			return events;
 		}
 
