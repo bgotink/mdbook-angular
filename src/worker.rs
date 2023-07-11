@@ -1,10 +1,9 @@
 extern crate alloc;
 
 use anyhow::Result;
-use core::borrow::Borrow;
-use mdbook::{book::Chapter, errors::Error, renderer::RenderContext};
+use mdbook::{book::Chapter, renderer::RenderContext};
 use once_cell::sync::Lazy;
-use pulldown_cmark::{CowStr, Parser};
+use pulldown_cmark::Parser;
 use regex::Regex;
 use serde_json::json;
 use std::{
@@ -15,11 +14,9 @@ use std::{
 };
 
 use crate::{
-	codeblock::CodeBlock,
-	utils::{generate_angular_code, generated_rendered_code_block, path_to_root, AngularWorkspace},
+	codeblock_collector::CodeBlockCollector,
+	utils::{generate_angular_code, path_to_root, AngularWorkspace},
 };
-
-const TAG_ANGULAR: &str = "angular";
 
 static CODEBLOCK_IO_SCRIPT: &[u8] = include_bytes!("codeblock-io.min.js");
 
@@ -32,13 +29,6 @@ pub(crate) struct AngularWorker {
 	include_playgrounds: bool,
 	chapters_with_playgrounds: HashSet<PathBuf>,
 }
-
-static COMMENT_WITHOUT_KEEP: Lazy<Regex> = Lazy::new(|| {
-	Regex::new(r#"(\n?)\s*/\*\*(?s:@kee[^p]|@ke[^e]|@k[^e]|@[^k]|[^@])*\*/\s*?\n"#).unwrap()
-});
-static COMMENT_KEEP_START: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(/\*\*)\s*?@keep\b"#).unwrap());
-static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
-	Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
 
 impl AngularWorker {
 	pub(crate) fn new(ctx: &RenderContext) -> Result<AngularWorker> {
@@ -98,97 +88,14 @@ impl AngularWorker {
 		let Some(chapter_path) = &chapter.path else { return Ok(()) };
 		let path_to_root = path_to_root(chapter_path);
 
-		let mut angular_code_blocks: Vec<CodeBlock> = Vec::new();
+		let mut collector = CodeBlockCollector::new(self.include_playgrounds);
 
-		let mut current_angular_code_block: Option<String> = None;
-		let mut error: Option<Error> = None;
-		let mut has_playgrounds = false;
-
-		let events = Parser::new(&chapter.content).flat_map(|e| {
-			if let pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(
-				pulldown_cmark::CodeBlockKind::Fenced(lang),
-			)) = &e
-			{
-				current_angular_code_block = if lang.contains(TAG_ANGULAR) {
-					Some(String::new())
-				} else {
-					None
-				};
-				return vec![e];
-			}
-
-			if let pulldown_cmark::Event::Text(text) = e {
-				return if let Some(current_angular_code_block) = current_angular_code_block.as_mut()
-				{
-					current_angular_code_block.push_str(&text);
-
-					let text = COMMENT_WITHOUT_KEEP.replace_all(text.borrow(), "$1");
-					let text = COMMENT_KEEP_START.replace_all(&text, "$1");
-					let text = COMMENT_KEEP_MIDDLE.replace_all(&text, "$1");
-
-					vec![pulldown_cmark::Event::Text(CowStr::from(text.to_string()))]
-				} else {
-					vec![pulldown_cmark::Event::Text(text)]
-				};
-			}
-
-			if let pulldown_cmark::Event::End(pulldown_cmark::Tag::CodeBlock(
-				pulldown_cmark::CodeBlockKind::Fenced(lang),
-			)) = &e
-			{
-				if let Some(angular_code) = &current_angular_code_block {
-					let playground = if lang.contains("no-playground") {
-						false
-					} else if lang.contains("playground") {
-						true
-					} else {
-						self.include_playgrounds
-					};
-
-					let index = angular_code_blocks.len();
-
-					match CodeBlock::new(angular_code, index) {
-						Ok(code_block) => {
-							let rendered_codeblock = generated_rendered_code_block(
-								&code_block,
-								index,
-								playground,
-								&mut has_playgrounds,
-							);
-
-							angular_code_blocks.push(code_block);
-
-							return vec![
-								e,
-								pulldown_cmark::Event::Html(CowStr::Boxed(
-									rendered_codeblock.into_boxed_str(),
-								)),
-							];
-						}
-						Err(err) => {
-							log::error!("Failed to parse angular code block\nDid you mean this to be an angular code sample?");
-
-							if error.is_none() {
-								error = Some(err);
-							}
-
-							// return value doesn't matter, we'll return an error below anyway
-							return vec![e];
-						}
-					}
-				}
-				current_angular_code_block = None;
-			}
-
-			vec![e]
-		});
+		let events = Parser::new(&chapter.content).flat_map(|e| collector.process_event(e));
 
 		let mut new_content: String = String::with_capacity(chapter.content.len());
 		pulldown_cmark_to_cmark::cmark(events, &mut new_content)?;
 
-		if let Some(err) = error {
-			return Err(err);
-		}
+		let (has_playgrounds, angular_code_blocks) = collector.finalize()?;
 
 		if angular_code_blocks.is_empty() {
 			return Ok(());

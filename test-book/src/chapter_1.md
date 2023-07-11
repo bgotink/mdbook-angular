@@ -2,7 +2,7 @@
 
 This is a test of the alarm system
 
-```ts,angular
+```ts,angular,hide
 import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
 
 @Component({
