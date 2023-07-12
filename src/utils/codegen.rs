@@ -35,14 +35,14 @@ pub(crate) fn generate_angular_code(
 			);
 	}
 
-	fs::write(Path::join(project_root, "main.ts"), main)?;
+	fs::write(project_root.join("main.ts"), main)?;
 
 	fs::write(
-		Path::join(project_root, "index.html"),
+		project_root.join("index.html"),
 		"<!doctype html>\n<html></html>\n",
 	)?;
 	fs::write(
-		Path::join(project_root, "tsconfig.json"),
+		project_root.join("tsconfig.json"),
 		"{\"extends\":\"../tsconfig.json\",\"files\": [\"main.ts\"]}",
 	)?;
 

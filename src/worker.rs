@@ -32,15 +32,7 @@ pub(crate) struct AngularWorker {
 
 impl AngularWorker {
 	pub(crate) fn new(ctx: &RenderContext) -> Result<AngularWorker> {
-		let mut root = ctx.root.clone();
-
-		if let Some(toml::Value::String(angular_root)) = ctx.config.get("output.angular.root") {
-			root.push(angular_root);
-		}
-
-		root.push(".angular/mdbook");
-
-		let root = root.canonicalize()?;
+		let root = ctx.root.join("mdbook_angular");
 
 		if root.try_exists()? {
 			fs::remove_dir_all(&root)?;
@@ -48,16 +40,19 @@ impl AngularWorker {
 
 		fs::create_dir_all(&root)?;
 
+		let root = root.canonicalize()?;
+		log::debug!("Angular root folder {}", root.display());
+
 		if let Some(toml::Value::String(tsconfig)) = ctx.config.get("output.angular.tsconfig") {
-			let resolved_tsconfig = Path::join(&root, tsconfig);
+			let resolved_tsconfig = root.join(tsconfig);
 
 			fs::write(
-				Path::join(&root, "tsconfig.json"),
+				root.join("tsconfig.json"),
 				serde_json::to_string(&json!({ "extends": resolved_tsconfig }))?,
 			)?;
 		} else {
 			fs::write(
-                Path::join(&root, "tsconfig.json"),
+                root.join( "tsconfig.json"),
                 "{\"compilerOptions\":{\"strict\": true,\"sourceMap\": true,\"experimentalDecorators\": true,\"moduleResolution\": \"node\",\"importHelpers\": true,\"target\": \"ES2022\",\"module\": \"ES2022\",\"useDefineForClassFields\": false,\"lib\": [\"ES2022\",\"dom\"]}}"
             )?;
 		}
@@ -176,9 +171,9 @@ impl AngularWorker {
 		let Some(captures) = LOAD_ANGULAR_RE.captures(chapter.as_str()) else { return Ok(())};
 
 		let project_name = captures.get(1).unwrap().as_str();
-		let script_folder = Path::join(&self.target, project_name);
+		let script_folder = self.target.join(project_name);
 
-		let index: String = fs::read(Path::join(&script_folder, "index.html"))?
+		let index: String = fs::read(script_folder.join("index.html"))?
 			.into_iter()
 			.map(|b| -> char { b.into() })
 			.collect();
@@ -205,10 +200,7 @@ impl AngularWorker {
 
 	fn write_playground_script(&self) -> Result<()> {
 		if !self.chapters_with_playgrounds.is_empty() {
-			fs::write(
-				Path::join(&self.target, "codeblock-io.js"),
-				CODEBLOCK_IO_SCRIPT,
-			)?;
+			fs::write(self.target.join("codeblock-io.js"), CODEBLOCK_IO_SCRIPT)?;
 		}
 
 		Ok(())
