@@ -8,7 +8,7 @@ pub(crate) fn generate_angular_code(
 	project_root: &Path,
 	angular_code_samples: Vec<CodeBlock>,
 ) -> Result<()> {
-	fs::create_dir(project_root)?;
+	fs::create_dir_all(project_root)?;
 
 	let mut main = "\
 			import 'zone.js';\n\
@@ -24,12 +24,12 @@ pub(crate) fn generate_angular_code(
 	for (index, file) in angular_code_samples.into_iter().enumerate() {
 		fs::write(
 			&project_root.join(format!("component_{index}.ts")),
-			file.source,
+			file.source_to_write,
 		)?;
 
 		main.push_str(
         format!(
-					"\nimport {{{} as CodeBlock_{index}}} from './component_{index}';\napplications.push(bootstrapApplication(CodeBlock_{index}, {{providers}}));\n",
+					"\nimport {{{} as CodeBlock_{index}}} from './component_{index}.js';\napplications.push(bootstrapApplication(CodeBlock_{index}, {{providers}}));\n",
 					file.class_name,
 				).as_str()
 			);
@@ -43,7 +43,7 @@ pub(crate) fn generate_angular_code(
 	)?;
 	fs::write(
 		project_root.join("tsconfig.json"),
-		"{\"extends\":\"../tsconfig.json\",\"files\": [\"main.ts\"]}",
+		r#"{"extends":"../tsconfig.json","files": ["main.ts"]}"#,
 	)?;
 
 	Ok(())

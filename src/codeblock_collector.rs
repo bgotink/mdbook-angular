@@ -2,6 +2,7 @@ use std::{fs, path::Path};
 
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
+use pathdiff::diff_paths;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Tag};
 use regex::Regex;
 
@@ -16,7 +17,7 @@ static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
 
 static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
 	Regex::new(
-		r#"\{\{#angular\s+(?<path>\S+)(?<flags>(?:\s+(?:hide|no-playground|playground)?)*)\}\}"#,
+		r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>(?:\s+(?:hide|no-playground|playground)?)*)\}\}"#,
 	)
 	.unwrap()
 });
@@ -30,7 +31,9 @@ pub(crate) struct CodeBlockCollector<'a> {
 	include_playgrounds: bool,
 	has_playgrounds: bool,
 
-	path: &'a Path,
+	book_root: &'a Path,
+	angular_root: &'a Path,
+	chapter_path: &'a Path,
 
 	err: Option<Error>,
 	code_blocks: Vec<CodeBlock>,
@@ -38,11 +41,18 @@ pub(crate) struct CodeBlockCollector<'a> {
 }
 
 impl<'a> CodeBlockCollector<'a> {
-	pub(crate) fn new(path: &'a Path, include_playgrounds: bool) -> Self {
+	pub(crate) fn new(
+		book_root: &'a Path,
+		angular_root: &'a Path,
+		chapter_path: &'a Path,
+		include_playgrounds: bool,
+	) -> Self {
 		CodeBlockCollector {
 			include_playgrounds,
 			has_playgrounds: false,
-			path,
+			book_root,
+			angular_root,
+			chapter_path,
 
 			err: None,
 			code_blocks: Vec::new(),
@@ -56,7 +66,14 @@ impl<'a> CodeBlockCollector<'a> {
 		}
 	}
 
-	fn insert_code_block(&mut self, source: &str, lang: &str, events: &mut Vec<Event>) {
+	fn insert_code_block(
+		&mut self,
+		source: &str,
+		lang: &str,
+		events: &mut Vec<Event>,
+		class_name: Option<&str>,
+		reexport_path: Option<&Path>,
+	) {
 		let add_playground = if lang.contains("no-playground") {
 			false
 		} else if lang.contains("playground") {
@@ -67,7 +84,13 @@ impl<'a> CodeBlockCollector<'a> {
 
 		let index = self.code_blocks.len();
 
-		let code_block = match CodeBlock::new(source, index) {
+		log::error!(
+			"insert_code_block {} {}",
+			class_name.unwrap_or("<class name yet>"),
+			reexport_path.unwrap_or(Path::new("no_path")).display()
+		);
+
+		let code_block = match CodeBlock::new(source, index, class_name, reexport_path) {
 			Ok(code_block) => code_block,
 			Err(err) => {
 				log::error!("Failed to parse angular code block\nDid you mean this to be an angular code sample?");
@@ -85,14 +108,12 @@ impl<'a> CodeBlockCollector<'a> {
 			&mut self.has_playgrounds,
 		);
 
-		self.code_blocks.push(code_block);
-
 		if !lang.contains("hide") {
 			events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
 				CowStr::Boxed(lang.to_owned().into_boxed_str()),
 			))));
 
-			let text = COMMENT_WITHOUT_KEEP.replace_all(source, "$1");
+			let text = COMMENT_WITHOUT_KEEP.replace_all(&code_block.source_to_show, "$1");
 			let text = COMMENT_KEEP_START.replace_all(&text, "$1");
 			let text = COMMENT_KEEP_MIDDLE.replace_all(&text, "$1");
 
@@ -102,6 +123,8 @@ impl<'a> CodeBlockCollector<'a> {
 				CowStr::Boxed(lang.to_owned().into_boxed_str()),
 			))));
 		}
+
+		self.code_blocks.push(code_block);
 
 		events.push(Event::Html(rendered_codeblock.into()));
 	}
@@ -136,16 +159,16 @@ impl<'a> CodeBlockCollector<'a> {
 						text[..m.start()].to_owned().into_boxed_str(),
 					)));
 
-					let path = self.path.parent().unwrap();
+					let path = self.book_root.join(self.chapter_path.parent().unwrap());
 					let path = path.join(&c["path"]);
 
 					let contents = match fs::read_to_string(&path) {
 						Ok(content) => content,
 						Err(err) => {
 							self.store_err(Error::new(err).context(format!(
-								"Failed to read file angular playground at {} in {}",
+								"Failed to read angular playground file at {} in {}",
 								&c["path"],
-								self.path.display()
+								self.chapter_path.display()
 							)));
 
 							// we'll throw the error later anyway
@@ -156,7 +179,24 @@ impl<'a> CodeBlockCollector<'a> {
 					let mut flags = vec!["ts", "angular"];
 					flags.append(&mut c["flags"].split_whitespace().collect::<Vec<&str>>());
 
-					self.insert_code_block(&contents, &flags.join(","), &mut events);
+					let reexport_path =
+						diff_paths(&path, self.angular_root.join("does_not_matter"));
+					log::error!(
+						"reexport_path? {} -> {} = {}",
+						self.book_root.display(),
+						path.display(),
+						reexport_path
+							.as_deref()
+							.unwrap_or(Path::new("not_found"))
+							.display()
+					);
+					self.insert_code_block(
+						&contents,
+						&flags.join(","),
+						&mut events,
+						c.name("class_name").map(|m| m.as_str()),
+						reexport_path.as_deref(),
+					);
 
 					let end = m.end();
 					if end < text.len() {
@@ -187,7 +227,7 @@ impl<'a> CodeBlockCollector<'a> {
 			};
 
 			let mut events: Vec<Event<'i>> = Vec::new();
-			self.insert_code_block(&text, &current_code_block.language, &mut events);
+			self.insert_code_block(&text, &current_code_block.language, &mut events, None, None);
 			return events;
 		}
 

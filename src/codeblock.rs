@@ -1,4 +1,4 @@
-use std::{io, rc::Rc};
+use std::{io, path::Path, rc::Rc};
 
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
@@ -9,7 +9,7 @@ use swc_common::{
 	comments::{Comments, SingleThreadedComments},
 	errors::{Handler, HANDLER},
 	source_map::Pos,
-	FileName, SourceFile, Spanned,
+	BytePos, FileName, SourceFile, Span, Spanned,
 };
 use swc_ecmascript::{
 	ast,
@@ -18,6 +18,9 @@ use swc_ecmascript::{
 	parser::{Syntax, TsConfig},
 	visit::VisitWith,
 };
+
+static TS_EXT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\.([cm]?)ts(x?)$").unwrap());
+static START_OF_FILE: BytePos = BytePos(1);
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -45,19 +48,21 @@ pub(crate) struct PlaygroundInput {
 	pub(crate) config: PlaygroundInputConfig,
 }
 
-struct CodeBlockVisitor {
+struct CodeBlockVisitor<'a> {
 	index: usize,
-	source: Rc<String>,
+	source: &'a str,
 	source_file: SourceFile,
 	comments: SingleThreadedComments,
 
 	tag: Option<String>,
 	class_name: Option<String>,
 	inputs: Vec<PlaygroundInput>,
+
+	overwritten_source: Option<String>,
 }
 
-impl CodeBlockVisitor {
-	fn extract_selector(&mut self, component: &ast::ObjectLit) {
+impl<'a> CodeBlockVisitor<'a> {
+	fn extract_selector(&mut self, component: &ast::ObjectLit, insert_if_needed: bool) {
 		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
 
 		let tag = component
@@ -84,6 +89,12 @@ impl CodeBlockVisitor {
 			return;
 		}
 
+		if !insert_if_needed {
+			// Not filling out the tag, we'll throw on that later when trying to
+			// extract the tag
+			return;
+		}
+
 		self.tag = Some(format!("codeblock-{}", self.index));
 
 		if let Some(first_prop) = component.props.first() {
@@ -107,7 +118,7 @@ impl CodeBlockVisitor {
 			);
 
 			let (before, after) = self.source.split_at(span.lo.to_usize() - 1);
-			self.source = Rc::new(vec![before, &insert, after].into_iter().collect());
+			self.overwritten_source = Some(format!("{before}{insert}{after}"));
 		} else {
 			log::warn!("Empty @Component() is not supported");
 		}
@@ -176,10 +187,18 @@ impl CodeBlockVisitor {
 		self.inputs.push(input);
 	}
 
-	fn visit_exported_class(&mut self, name: String, n: &ast::Class) {
+	fn visit_exported_class(&mut self, name: String, n: &ast::Class, mut span: Span) {
 		log::debug!(r#"visiting class "{name}""#);
 
+		if let Some(name_to_look_for) = &self.class_name {
+			if name_to_look_for.ne(&name) {
+				return;
+			}
+		}
+
 		for decorator in &n.decorators {
+			span = span.to(decorator.span());
+
 			if let Some(call) = decorator.expr.as_call() {
 				if let Some(ident) = call.callee.as_expr().and_then(|c| c.as_ident()) {
 					if !ident.sym.eq("Component") || call.args.len() != 1 {
@@ -187,7 +206,7 @@ impl CodeBlockVisitor {
 					}
 
 					if let Some(obj) = call.args.first().unwrap().expr.as_object() {
-						self.extract_selector(obj);
+						self.extract_selector(obj, self.class_name.is_none());
 
 						break;
 					}
@@ -199,22 +218,34 @@ impl CodeBlockVisitor {
 			return;
 		}
 
-		self.class_name = Some(name);
+		if self.class_name.is_none() {
+			self.class_name = Some(name);
+		} else {
+			if let Some(comments) = self.comments.take_leading(span.span_lo()) {
+				for comment in comments {
+					span = span.to(comment.span);
+				}
+			}
+
+			self.source = &self.source
+				[(span.lo - START_OF_FILE).to_usize()..(span.hi - START_OF_FILE).to_usize()];
+		}
 
 		self.extract_inputs(n);
 	}
 }
 
-impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
+impl<'a> swc_ecmascript::visit::Visit for CodeBlockVisitor<'a> {
 	fn visit_export_decl(&mut self, n: &ast::ExportDecl) {
 		if self.tag.is_some() {
 			return;
 		}
 
+		let span = n.span();
 		let Some(n) = n.decl.as_class() else { return };
 		let name = n.ident.sym.to_string();
 
-		self.visit_exported_class(name, &n.class);
+		self.visit_exported_class(name, &n.class, span);
 	}
 
 	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) {
@@ -222,9 +253,10 @@ impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 			return;
 		}
 
+		let span = n.span();
 		let Some(n) = n.decl.as_class() else { return };
 
-		self.visit_exported_class("default".to_owned(), &n.class);
+		self.visit_exported_class("default".to_owned(), &n.class, span);
 	}
 }
 
@@ -267,23 +299,28 @@ fn includes_decorator_with_name(decorators: &[ast::Decorator], name: &str) -> bo
 }
 
 pub(crate) struct CodeBlock {
-	pub(crate) source: String,
+	pub(crate) source_to_show: String,
+	pub(crate) source_to_write: String,
 	pub(crate) tag: String,
 	pub(crate) class_name: String,
 	pub(crate) inputs: Vec<PlaygroundInput>,
 }
 
 impl CodeBlock {
-	pub(crate) fn new(source: &str, index: usize) -> Result<CodeBlock> {
+	pub(crate) fn new(
+		source: &str,
+		index: usize,
+		class_name: Option<&str>,
+		reexport_path: Option<&Path>,
+	) -> Result<CodeBlock> {
 		let handler = Handler::with_emitter_writer(Box::new(io::stderr()), None);
-		let source = Rc::new(source.to_owned());
 
 		let source_file = SourceFile::new_from(
 			FileName::Anon,
 			false,
 			FileName::Anon,
-			source.clone(),
-			swc_common::BytePos(1),
+			Rc::new(source.to_owned()),
+			START_OF_FILE,
 		);
 
 		let comments = SingleThreadedComments::default();
@@ -311,21 +348,50 @@ impl CodeBlock {
 			source,
 			source_file,
 			tag: None,
-			class_name: None,
+			class_name: class_name.map(ToOwned::to_owned),
 			comments,
 			inputs: Vec::new(),
+			overwritten_source: None,
 		};
 
 		HANDLER.set(&handler, || program.visit_with(&mut code_block));
 
+		let Some(class_name) = code_block.class_name else {
+			return Err(
+				match class_name {
+					Some(class_name) => Error::msg(format!("Failed to find class {class_name}")),
+					None => Error::msg("Failed to find component class")
+				}
+			);
+		};
+
+		let Some(tag) = code_block.tag else {
+			return Err(Error::msg(format!("Failed to find selector on class {class_name}")));
+		};
+
+		let source_to_show = code_block
+			.overwritten_source
+			.unwrap_or_else(|| code_block.source.to_owned());
+
+		let source_to_write = match reexport_path {
+			Some(reexport_path) => {
+				// TypeScript/JavaScript only support string paths, so... this should be
+				// fine otherwise things will not work, regardless of whether we can
+				// successfully print the path into the file.
+				let reexport_path = reexport_path.as_os_str().to_string_lossy();
+
+				let reexport_path = TS_EXT.replace_all(reexport_path.as_ref(), "$1js$2");
+
+				format!("export {{{class_name}}} from './{reexport_path}';\n")
+			}
+			None => source_to_show.clone(),
+		};
+
 		Ok(CodeBlock {
-			source: code_block.source.to_string(),
-			tag: code_block
-				.tag
-				.ok_or(Error::msg("Failed to find component selector"))?,
-			class_name: code_block
-				.class_name
-				.ok_or(Error::msg("Failed to find component class name"))?,
+			source_to_show,
+			source_to_write,
+			tag,
+			class_name,
 			inputs: code_block.inputs,
 		})
 	}

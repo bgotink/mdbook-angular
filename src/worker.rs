@@ -21,7 +21,8 @@ use crate::{
 static CODEBLOCK_IO_SCRIPT: &[u8] = include_bytes!("codeblock-io.min.js");
 
 pub(crate) struct AngularWorker {
-	root: PathBuf,
+	book_root: PathBuf,
+	angular_root: PathBuf,
 	target: PathBuf,
 	workspace: AngularWorkspace,
 	index: u32,
@@ -48,13 +49,33 @@ impl AngularWorker {
 
 			fs::write(
 				root.join("tsconfig.json"),
-				serde_json::to_string(&json!({ "extends": resolved_tsconfig }))?,
+				serde_json::to_string(&json!({
+					"extends": resolved_tsconfig,
+					"compilerOptions": {
+						"moduleResolution": "bundler",
+						"allowImportingTsExtensions": true,
+						"resolvePackageJsonExports": true,
+						"resolvePackageJsonImports": true,
+					},
+				}))?,
 			)?;
 		} else {
 			fs::write(
-                root.join( "tsconfig.json"),
-                "{\"compilerOptions\":{\"strict\": true,\"sourceMap\": true,\"experimentalDecorators\": true,\"moduleResolution\": \"node\",\"importHelpers\": true,\"target\": \"ES2022\",\"module\": \"ES2022\",\"useDefineForClassFields\": false,\"lib\": [\"ES2022\",\"dom\"]}}"
-            )?;
+				root.join("tsconfig.json"),
+				serde_json::to_string(&json!({
+					"compilerOptions":{
+						"strict": true,
+						"sourceMap": true,
+						"experimentalDecorators": true,
+						"moduleResolution": "node",
+						"importHelpers": true,
+						"target": "ES2022",
+						"module": "ES2022",
+						"useDefineForClassFields": false,
+						"lib": ["ES2022", "dom"],
+					}
+				}))?,
+			)?;
 		}
 
 		let include_playgrounds = ctx
@@ -70,7 +91,8 @@ impl AngularWorker {
 			.unwrap_or(true);
 
 		Ok(AngularWorker {
-			root,
+			book_root: ctx.source_dir(),
+			angular_root: root,
 			target: ctx.destination.clone(),
 			workspace: AngularWorkspace::new(optimize),
 			index: 0,
@@ -83,7 +105,12 @@ impl AngularWorker {
 		let Some(chapter_path) = &chapter.path else { return Ok(()) };
 		let path_to_root = path_to_root(chapter_path);
 
-		let mut collector = CodeBlockCollector::new(chapter_path, self.include_playgrounds);
+		let mut collector = CodeBlockCollector::new(
+			&self.book_root,
+			&self.angular_root,
+			chapter_path,
+			self.include_playgrounds,
+		);
 
 		let events = Parser::new(&chapter.content).flat_map(|e| collector.process_event(e));
 
@@ -101,7 +128,7 @@ impl AngularWorker {
 
 		let project_name = format!("code_{index}");
 
-		generate_angular_code(&self.root.join(&project_name), angular_code_blocks)?;
+		generate_angular_code(&self.angular_root.join(&project_name), angular_code_blocks)?;
 
 		new_content.push_str(&format!(
 			"\n\n<script load-angular-from=\"{project_name}\"></script>\n",
@@ -139,7 +166,7 @@ impl AngularWorker {
 	}
 
 	fn build_angular_code(&self) -> Result<()> {
-		let runner = self.workspace.write(&self.root, &self.target)?;
+		let runner = self.workspace.write(&self.angular_root, &self.target)?;
 
 		for project_name in self.workspace.projects() {
 			runner.run(project_name)?;

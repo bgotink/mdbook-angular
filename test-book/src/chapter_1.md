@@ -2,29 +2,11 @@
 
 This is a test of the alarm system
 
-```ts,angular,hide
-import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
-
-@Component({
-  selector: 'codeblock-0',
-  standalone: true,
-  template: `<p>Hi {{name}}, it's working!</p>`,
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-export class CodeBlock {
-	/**
-	 * Person to tell it's working
-	 *
-	 * @input {"default": "Bram"}
-	 */
-	@Input()
-	name = 'Bram';
-}
-```
+{{#angular ./sample-2.ts#AnnounceComponent hide}}
 
 more test stuff
 
-{{#angular ./sample-2.ts}}
+{{#angular ./sample-2.ts#ConvinceComponent}}
 
 even more test stuff
 
