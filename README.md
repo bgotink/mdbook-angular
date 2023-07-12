@@ -10,12 +10,15 @@ This project requires mdbook and angular to be installed
 
 ```shell
 cargo install mdbook
-cd test-book && yarn install
+yarn install
 ```
 
 Build the project
 
 ```shell
+# only if you updated src/codeblock-io.js
+yarn build-script
+
 cargo build
 ```
 
