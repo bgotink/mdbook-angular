@@ -84,12 +84,6 @@ impl<'a> CodeBlockCollector<'a> {
 
 		let index = self.code_blocks.len();
 
-		log::error!(
-			"insert_code_block {} {}",
-			class_name.unwrap_or("<class name yet>"),
-			reexport_path.unwrap_or(Path::new("no_path")).display()
-		);
-
 		let code_block = match CodeBlock::new(source, index, class_name, reexport_path) {
 			Ok(code_block) => code_block,
 			Err(err) => {
@@ -181,15 +175,7 @@ impl<'a> CodeBlockCollector<'a> {
 
 					let reexport_path =
 						diff_paths(&path, self.angular_root.join("does_not_matter"));
-					log::error!(
-						"reexport_path? {} -> {} = {}",
-						self.book_root.display(),
-						path.display(),
-						reexport_path
-							.as_deref()
-							.unwrap_or(Path::new("not_found"))
-							.display()
-					);
+
 					self.insert_code_block(
 						&contents,
 						&flags.join(","),
