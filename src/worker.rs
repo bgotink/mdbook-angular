@@ -45,18 +45,12 @@ impl AngularWorker {
 		log::debug!("Angular root folder {}", root.display());
 
 		if let Some(toml::Value::String(tsconfig)) = ctx.config.get("output.angular.tsconfig") {
-			let resolved_tsconfig = root.join(tsconfig);
+			let resolved_tsconfig = ctx.root.join(tsconfig);
 
 			fs::write(
 				root.join("tsconfig.json"),
 				serde_json::to_string(&json!({
 					"extends": resolved_tsconfig,
-					"compilerOptions": {
-						"moduleResolution": "bundler",
-						"allowImportingTsExtensions": true,
-						"resolvePackageJsonExports": true,
-						"resolvePackageJsonImports": true,
-					},
 				}))?,
 			)?;
 		} else {
