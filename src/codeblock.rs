@@ -4,7 +4,7 @@ use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use swc_common::{
 	comments::{Comments, SingleThreadedComments},
 	errors::{Handler, HANDLER},
@@ -35,7 +35,7 @@ pub(crate) enum PlaygroundInputType {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub(crate) struct PlaygroundInputConfig {
 	#[serde(rename = "type", default)]
-	pub(crate) _type: PlaygroundInputType,
+	pub(crate) type_: PlaygroundInputType,
 
 	#[serde(rename = "default")]
 	pub(crate) default_value: Option<Value>,
@@ -154,6 +154,10 @@ impl<'a> CodeBlockVisitor<'a> {
 			config: PlaygroundInputConfig::default(),
 		};
 
+		if let Some(value) = prop_value(member) {
+			try_extract_default(value, &mut input.config);
+		}
+
 		let leading_comment = self
 			.comments
 			.get_leading(member.span_lo())
@@ -168,7 +172,12 @@ impl<'a> CodeBlockVisitor<'a> {
 
 				if let Some(config) = clean_line.strip_prefix("@input") {
 					match serde_json::from_str::<PlaygroundInputConfig>(config) {
-						Ok(config) => input.config = config,
+						Ok(config) => {
+							input.config.type_ = config.type_;
+							if config.default_value.is_some() {
+								input.config.default_value = config.default_value;
+							}
+						}
 						Err(err) => {
 							log::error!("Failed to parse input `{clean_line}`: {err}");
 						}
@@ -274,6 +283,14 @@ fn prop_name(prop: &ast::ClassMember) -> Option<String> {
 	}
 }
 
+fn prop_value(prop: &ast::ClassMember) -> Option<&ast::Expr> {
+	match prop {
+		ast::ClassMember::ClassProp(ast::ClassProp { value, .. })
+		| ast::ClassMember::AutoAccessor(ast::AutoAccessor { value, .. }) => value.as_deref(),
+		_ => None,
+	}
+}
+
 fn get_decorators(prop: &ast::ClassMember) -> Option<&Vec<ast::Decorator>> {
 	match prop {
 		ast::ClassMember::AutoAccessor(prop) => Some(&prop.decorators),
@@ -296,6 +313,26 @@ fn includes_decorator_with_name(decorators: &[ast::Decorator], name: &str) -> bo
 			false
 		}
 	})
+}
+
+fn try_extract_default(expr: &ast::Expr, input: &mut PlaygroundInputConfig) {
+	let Some(lit) = expr.as_lit() else { return };
+
+	match lit {
+		ast::Lit::Bool(value) => {
+			input.type_ = PlaygroundInputType::Boolean;
+			input.default_value = Some(Value::Bool(value.value));
+		}
+		ast::Lit::Num(value) => {
+			input.type_ = PlaygroundInputType::Number;
+			input.default_value = Some(json!(value.value));
+		}
+		ast::Lit::Str(value) => {
+			input.type_ = PlaygroundInputType::Text;
+			input.default_value = Some(Value::String(value.value.to_string()));
+		}
+		_ => {}
+	}
 }
 
 pub(crate) struct CodeBlock {
@@ -409,7 +446,7 @@ mod test {
 		assert_eq!(
 			to_string(&PlaygroundInputConfig {
 				default_value: Some(Value::String("Bram".to_owned())),
-				_type: PlaygroundInputType::Text,
+				type_: PlaygroundInputType::Text,
 			})?,
 			r#"{"type":"text","default":"Bram"}"#
 		);
@@ -417,7 +454,7 @@ mod test {
 		assert_eq!(
 			to_string(&PlaygroundInputConfig {
 				default_value: Some(Value::Number(Number::from(42))),
-				_type: PlaygroundInputType::Number,
+				type_: PlaygroundInputType::Number,
 			})?,
 			r#"{"type":"number","default":42}"#
 		);
@@ -425,7 +462,7 @@ mod test {
 		assert_eq!(
 			to_string(&PlaygroundInputConfig {
 				default_value: None,
-				_type: PlaygroundInputType::Boolean,
+				type_: PlaygroundInputType::Boolean,
 			})?,
 			r#"{"type":"boolean","default":null}"#
 		);
@@ -433,7 +470,7 @@ mod test {
 		assert_eq!(
 			to_string(&PlaygroundInputConfig {
 				default_value: None,
-				_type: PlaygroundInputType::Enum(vec!["one".to_owned(), "two".to_owned()]),
+				type_: PlaygroundInputType::Enum(vec!["one".to_owned(), "two".to_owned()]),
 			})?,
 			r#"{"type":{"enum":["one","two"]},"default":null}"#
 		);
@@ -447,7 +484,7 @@ mod test {
 			from_str::<PlaygroundInputConfig>("{}")?,
 			PlaygroundInputConfig {
 				default_value: None,
-				_type: PlaygroundInputType::Text,
+				type_: PlaygroundInputType::Text,
 			},
 		);
 

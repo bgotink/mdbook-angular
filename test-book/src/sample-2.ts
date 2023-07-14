@@ -9,8 +9,6 @@ import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
 export class AnnounceComponent {
 	/**
 	 * Person to tell it's working
-	 *
-	 * @input {"default": "Bram"}
 	 */
 	@Input()
 	name = 'Bram';
@@ -25,14 +23,12 @@ export class AnnounceComponent {
 export class ConvinceComponent {
 	/**
 	 * Person to convince
-	 * @input {"default": "Bram"}
 	 */
 	@Input()
 	name = 'Bram';
 
 	/**
 	 * Number of exclamation points to write!
-	 * @input {"default": 1, "type": "number"}
 	 */
 	@Input()
 	numberOfExclamationPoints = 1;
