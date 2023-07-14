@@ -29,7 +29,7 @@ customElements.define(
 				getValue = () => input.value;
 			} else {
 				switch (config.type) {
-					case 'Number': {
+					case 'number': {
 						input = document.createElement('input');
 						input.type = 'number';
 						input.valueAsNumber = config.default;
@@ -37,7 +37,7 @@ customElements.define(
 						getValue = () => input.valueAsNumber;
 						break;
 					}
-					case 'Boolean': {
+					case 'boolean': {
 						input = document.createElement('input');
 						input.type = 'checkbox';
 						input.checked = config.default;

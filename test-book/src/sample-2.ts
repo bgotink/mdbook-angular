@@ -19,7 +19,7 @@ export class AnnounceComponent {
 @Component({
 	standalone: true,
 	selector: 'convince-me',
-	template: `<p>It's working well, dear {{ name }} !</p>`,
+	template: `<p>It's working well, dear {{ name }} {{ exclaim }}</p>`,
 	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConvinceComponent {
@@ -29,4 +29,15 @@ export class ConvinceComponent {
 	 */
 	@Input()
 	name = 'Bram';
+
+	/**
+	 * Number of exclamation points to write!
+	 * @input {"default": 1, "type": "number"}
+	 */
+	@Input()
+	numberOfExclamationPoints = 1;
+
+	get exclaim() {
+		return '!'.repeat(this.numberOfExclamationPoints);
+	}
 }
