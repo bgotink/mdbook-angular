@@ -9,11 +9,13 @@ use regex::Regex;
 use crate::{codeblock::CodeBlock, utils::generated_rendered_code_block};
 
 static COMMENT_WITHOUT_KEEP: Lazy<Regex> = Lazy::new(|| {
-	Regex::new(r#"(\n?)\s*/\*\*(?s:@kee[^p]|@ke[^e]|@k[^e]|@[^k]|[^@])*\*/\s*?\n"#).unwrap()
+	Regex::new(r#"(\n?)[ \t]*/\*\*(?s:@kee[^p]|@ke[^e]|@k[^e]|@[^k]|\*[^/]|[^*@])*\*/[ \t]*?\n"#)
+		.unwrap()
 });
-static COMMENT_KEEP_START: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(/\*\*)\s*?@keep\b"#).unwrap());
+static COMMENT_KEEP_START: Lazy<Regex> =
+	Lazy::new(|| Regex::new(r#"(/\*\*)[ \t]*?@keep\b"#).unwrap());
 static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
-	Lazy::new(|| Regex::new(r#"(\n)\s*(\*\s*)?@keep\s*?\n"#).unwrap());
+	Lazy::new(|| Regex::new(r#"(\n)[ \t]*(\*[ \t]*)?@keep[ \t]*?\n"#).unwrap());
 
 static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
 	Regex::new(
