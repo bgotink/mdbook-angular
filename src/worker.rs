@@ -28,6 +28,7 @@ pub(crate) struct AngularWorker {
 	index: u32,
 
 	include_playgrounds: bool,
+	chapters_with_angular: HashSet<PathBuf>,
 	chapters_with_playgrounds: HashSet<PathBuf>,
 }
 
@@ -91,6 +92,7 @@ impl AngularWorker {
 			workspace: AngularWorkspace::new(optimize),
 			index: 0,
 			include_playgrounds,
+			chapters_with_angular: HashSet::new(),
 			chapters_with_playgrounds: HashSet::new(),
 		})
 	}
@@ -124,6 +126,7 @@ impl AngularWorker {
 
 		generate_angular_code(&self.angular_root.join(&project_name), angular_code_blocks)?;
 
+		self.chapters_with_angular.insert(chapter_path.clone());
 		new_content.push_str(&format!(
 			"\n\n<script load-angular-from=\"{project_name}\"></script>\n",
 		));
@@ -147,9 +150,9 @@ impl AngularWorker {
 		self.build_angular_code()?;
 
 		for chapter_path in self
-			.chapters_with_playgrounds
+			.chapters_with_angular
 			.iter()
-			.chain(vec![Path::new("index.html").to_path_buf()].iter())
+			.chain(std::iter::once(&Path::new("index.html").to_path_buf()))
 		{
 			self.insert_angular_scripts_into_chapter(chapter_path)?;
 		}
