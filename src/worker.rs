@@ -7,7 +7,7 @@ use pulldown_cmark::Parser;
 use regex::Regex;
 use serde_json::json;
 use std::{
-	collections::HashSet,
+	collections::{HashMap, HashSet},
 	fs,
 	io::{Read, Seek, Write},
 	path::{Path, PathBuf},
@@ -27,6 +27,7 @@ pub(crate) struct AngularWorker {
 	workspace: AngularWorkspace,
 	index: u32,
 
+	experimental_builder: bool,
 	include_playgrounds: bool,
 	chapters_with_angular: HashSet<PathBuf>,
 	chapters_with_playgrounds: HashSet<PathBuf>,
@@ -79,17 +80,29 @@ impl AngularWorker {
 			.and_then(toml::Value::as_bool)
 			.unwrap_or(true);
 
+		let experimental_builder = ctx
+			.config
+			.get("output.angular.experimentalBuilder")
+			.and_then(toml::Value::as_bool)
+			.unwrap_or(false);
+
 		let optimize = ctx
 			.config
 			.get("output.angular.optimize")
 			.and_then(toml::Value::as_bool)
 			.unwrap_or(true);
 
+		let inline_style_language = ctx
+			.config
+			.get("output.angular.inlineStyleLanguage")
+			.and_then(toml::Value::as_str);
+
 		Ok(AngularWorker {
 			book_root: ctx.source_dir(),
 			angular_root: root,
 			target: ctx.destination.clone(),
-			workspace: AngularWorkspace::new(optimize),
+			experimental_builder,
+			workspace: AngularWorkspace::new(experimental_builder, optimize, inline_style_language),
 			index: 0,
 			include_playgrounds,
 			chapters_with_angular: HashSet::new(),
@@ -124,7 +137,11 @@ impl AngularWorker {
 
 		let project_name = format!("code_{index}");
 
-		generate_angular_code(&self.angular_root.join(&project_name), angular_code_blocks)?;
+		generate_angular_code(
+			&self.angular_root.join(&project_name),
+			angular_code_blocks,
+			self.experimental_builder,
+		)?;
 
 		self.chapters_with_angular.insert(chapter_path.clone());
 		new_content.push_str(&format!(
@@ -149,12 +166,41 @@ impl AngularWorker {
 	pub(crate) fn finalize(&self) -> Result<()> {
 		self.build_angular_code()?;
 
+		let scripts: HashMap<_, _> = if self.experimental_builder {
+			fs::read_dir(&self.target)?
+				.filter_map(std::result::Result::ok)
+				.filter(is_js)
+				.filter_map(to_string_name)
+				.filter(|name| name.starts_with("code_"))
+				.map(|name| {
+					let dot = name.find('.').unwrap();
+					(name[0..dot].to_owned(), name)
+				})
+				.collect()
+		} else {
+			self.workspace
+				.projects()
+				.filter_map(|name| {
+					fs::read_dir(self.target.join(name))
+						.ok()
+						.and_then(|entries| {
+							entries
+								.filter_map(std::result::Result::ok)
+								.filter(is_js)
+								.filter_map(to_string_name)
+								.find(|name| name.starts_with("main."))
+								.map(|file| (name.clone(), format!("{name}/{file}")))
+						})
+				})
+				.collect()
+		};
+
 		for chapter_path in self
 			.chapters_with_angular
 			.iter()
 			.chain(std::iter::once(&Path::new("index.html").to_path_buf()))
 		{
-			self.insert_angular_scripts_into_chapter(chapter_path)?;
+			self.insert_angular_scripts_into_chapter(chapter_path, &scripts)?;
 		}
 
 		self.write_playground_script()?;
@@ -172,12 +218,14 @@ impl AngularWorker {
 		Ok(())
 	}
 
-	fn insert_angular_scripts_into_chapter(&self, chapter_path: &Path) -> Result<()> {
+	fn insert_angular_scripts_into_chapter(
+		&self,
+		chapter_path: &Path,
+		scripts: &HashMap<String, String>,
+	) -> Result<()> {
 		static LOAD_ANGULAR_RE: Lazy<Regex> = Lazy::new(|| {
 			Regex::new(r#"(?i)<script\s*load-angular-from="([^"]+)">\s*</script>"#).unwrap()
 		});
-		static SCRIPT_RE: Lazy<Regex> =
-			Lazy::new(|| Regex::new(r"<script[^>]*></script>").unwrap());
 
 		let mut chapter_path = chapter_path.to_path_buf();
 		if !chapter_path.set_extension("html") {
@@ -192,30 +240,21 @@ impl AngularWorker {
 		let mut chapter = String::new();
 		chapter_file.read_to_string(&mut chapter)?;
 
-		let Some(captures) = LOAD_ANGULAR_RE.captures(chapter.as_str()) else { return Ok(())};
+		let Some(captures) = LOAD_ANGULAR_RE.captures(&chapter) else { return Ok(())};
 
 		let project_name = captures.get(1).unwrap().as_str();
-		let script_folder = self.target.join(project_name);
+		let Some(script) = scripts.get(project_name) else { return Ok(()) };
 
-		let index: String = fs::read(script_folder.join("index.html"))?
-			.into_iter()
-			.map(|b| -> char { b.into() })
-			.collect();
-
-		let scripts = SCRIPT_RE
-			.find_iter(&index)
-			.map(|m| {
-				m.as_str().replace(
-					r#"src=""#,
-					format!(r#"src="{}/{}/"#, path_to_root(&chapter_path), project_name).as_str(),
-				)
-			})
-			.collect::<String>();
+		let script = format!(
+			r#"<script type="module" src="{}/{}"></script>"#,
+			path_to_root(&chapter_path),
+			script
+		);
 
 		chapter_file.rewind()?;
 		chapter_file.write_all(
 			chapter
-				.replace(captures.get(0).unwrap().as_str(), scripts.as_str())
+				.replace(captures.get(0).unwrap().as_str(), &script)
 				.as_bytes(),
 		)?;
 
@@ -229,4 +268,19 @@ impl AngularWorker {
 
 		Ok(())
 	}
+}
+
+fn is_js(entry: &fs::DirEntry) -> bool {
+	entry
+		.path()
+		.extension()
+		.map_or(false, |ext| ext.eq_ignore_ascii_case("js"))
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn to_string_name(entry: fs::DirEntry) -> Option<String> {
+	entry
+		.file_name()
+		.to_str()
+		.map(std::borrow::ToOwned::to_owned)
 }

@@ -1,0 +1,23 @@
+{
+	"builders": {
+		"application": {
+			"implementation": "./builder.mjs",
+			"schema": "./schema.json",
+			"description": ""
+		}
+	},
+	"type": "object",
+	"properties": {
+		"outputPath": {
+			"type": "string"
+		},
+		"inlineStyleLanguage": {
+			"type": "string"
+		},
+		"optimization": {
+			"type": "boolean"
+		}
+	},
+	"required": ["outputPath"],
+	"additionalProperties": false
+}

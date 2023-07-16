@@ -8,7 +8,7 @@
 		"build-script": "esbuild --minify --loader=js <src/codeblock-io.js >src/codeblock-io.min.js"
 	},
 	"devDependencies": {
-		"esbuild": "^0.17.5",
+		"esbuild": "^0.18.12",
 		"express-check-in": "^0.1.2",
 		"husky": "8.0.3",
 		"is-ci": "3.0.1",

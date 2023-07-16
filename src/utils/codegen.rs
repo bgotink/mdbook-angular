@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 
@@ -7,6 +10,7 @@ use crate::codeblock::CodeBlock;
 pub(crate) fn generate_angular_code(
 	project_root: &Path,
 	angular_code_samples: Vec<CodeBlock>,
+	experimental_builder: bool,
 ) -> Result<()> {
 	fs::create_dir_all(project_root)?;
 
@@ -35,7 +39,15 @@ pub(crate) fn generate_angular_code(
 			);
 	}
 
-	fs::write(project_root.join("main.ts"), main)?;
+	let main_file_name = if experimental_builder {
+		let mut p = PathBuf::from(project_root.file_name().unwrap());
+		p.set_extension("ts");
+		p
+	} else {
+		Path::new("main.ts").to_owned()
+	};
+
+	fs::write(project_root.join(main_file_name), main)?;
 
 	fs::write(
 		project_root.join("index.html"),
