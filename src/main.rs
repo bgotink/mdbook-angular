@@ -26,6 +26,15 @@ fn main() -> Result<(), Error> {
 
 	let mut ctx = RenderContext::from_json(io::stdin())?;
 
+	let valid_mdbook_versions = semver::VersionReq::parse(mdbook::MDBOOK_VERSION)?;
+	let actual_mdbook_version = semver::Version::parse(&ctx.version)?;
+
+	if !valid_mdbook_versions.matches(&actual_mdbook_version) {
+		return Err(Error::msg(format!(
+			"Expected mdbook version {valid_mdbook_versions} but got {actual_mdbook_version}"
+		)));
+	}
+
 	let renderer = HtmlHandlebars::new();
 	let worker = prepare(&mut ctx)?;
 

@@ -10,19 +10,20 @@ keywords = ["mdbook", "angular"]
 categories = ["text-processing"]
 
 [dependencies]
-env_logger = "0.9.*"
-log = "0.4.*"
-mdbook = "0.4.*"
-regex = "1.*"
-serde_json = "1.*"
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.5.*"
+env_logger = "0.10.0"
+log = "0.4.19"
+mdbook = "0.4.32"
+regex = "1.9.1"
+serde_json = "1.0.103"
+serde = { version = "1.0.171", features = ["derive"] }
+toml = "0.7.6"
 pulldown-cmark = "0.9.3"
 pulldown-cmark-to-cmark = "10.0.4"
 pathdiff = "0.2.1"
 anyhow = "1.0.71"
 once_cell = "1.18.0"
-swc_common = { version = "0.31", features = ["anyhow"] }
-swc_ecmascript = { version = "0.231", features = ["parser", "typescript", "visit", "codegen"] }
+swc_common = { version = "0.31.17", features = ["anyhow"] }
+swc_ecmascript = { version = "0.231.17", features = ["parser", "typescript", "visit", "codegen"] }
 chrono = { version = "0.4.26", default-features = false, features = ["clock"] }
+semver = "1.0.18"
 
