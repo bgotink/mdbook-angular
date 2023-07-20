@@ -109,7 +109,7 @@ pub(crate) fn generated_rendered_code_block(
 		element.push_str(&format!(
 			"\n\
 				Inputs:\n\n\
-				<table>\
+				<table class=\"mdbook-angular mdbook-angular-inputs\">\
 					<thead>\
 						<th>Name</th>
 						<th>Description</th>
@@ -145,7 +145,7 @@ pub(crate) fn generated_rendered_code_block(
 		element.push_str(&format!(
 			"\n\
 				Actions:\n\n\
-				<table>\
+				<table class=\"mdbook-angular mdbook-angular-actions\">\
 					<thead>\
 						<th>Action</th>
 						<th>Description</th>
