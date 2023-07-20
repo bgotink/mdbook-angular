@@ -6,7 +6,7 @@ This is a test of the alarm system
 
 more test stuff
 
-{{#angular ./sample-2.ts#ConvinceComponent}}
+{{#angular ./sample-2.ts#ConvinceComponent collapsed}}
 
 even more test stuff
 

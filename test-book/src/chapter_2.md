@@ -4,7 +4,7 @@ This is a test of the alarm system
 
 even more test stuff
 
-```ts,angular
+```ts,angular,collapsed
 import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
 
 @Component({

@@ -19,7 +19,7 @@ static COMMENT_KEEP_MIDDLE: Lazy<Regex> =
 
 static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
 	Regex::new(
-		r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>(?:\s+(?:hide|no-playground|playground)?)*)\}\}"#,
+		r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>(?:\s+(?:hide|no-playground|playground|collapsed)?)*)\}\}"#,
 	)
 	.unwrap()
 });
@@ -105,6 +105,12 @@ impl<'a> CodeBlockCollector<'a> {
 		);
 
 		if !lang.contains("hide") {
+			let collapsed = lang.contains("collapsed");
+			if collapsed {
+				static START_COLLAPSE: &str = "<details><summary>Show code</summary>\n";
+				events.push(Event::Html(CowStr::Borrowed(START_COLLAPSE)));
+			}
+
 			events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
 				CowStr::Boxed(lang.to_owned().into_boxed_str()),
 			))));
@@ -118,6 +124,11 @@ impl<'a> CodeBlockCollector<'a> {
 			events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
 				CowStr::Boxed(lang.to_owned().into_boxed_str()),
 			))));
+
+			if collapsed {
+				static END_COLLAPSE: &str = "</details>";
+				events.push(Event::Html(CowStr::Borrowed(END_COLLAPSE)));
+			}
 		}
 
 		self.code_blocks.push(code_block);
