@@ -98,3 +98,48 @@ customElements.define(
 		}
 	},
 );
+
+customElements.define(
+	'mdbook-angular-action',
+	class MdbookAngularActionElement extends HTMLElement {
+		processed = false;
+
+		connectedCallback() {
+			if (this.processed) {
+				return;
+			}
+			this.processed = true;
+
+			while (this.firstChild) {
+				this.firstChild.remove();
+			}
+
+			const name = this.getAttribute('name');
+			const index = +this.getAttribute('index');
+
+			const button = document.createElement('button');
+			const code = document.createElement('code');
+			code.append(`${name}()`);
+			button.append(code);
+			this.append(button);
+
+			button.addEventListener('click', () => {
+				let app =
+					/** @type {Promise<import('@angular/core').ApplicationRef>} */ (
+						mdBookAngular.applications[index]
+					);
+				let zone = /** @type {import('@angular/core').NgZone} */ (
+					mdBookAngular.zone
+				);
+
+				app.then(app => {
+					const component = app.components[0];
+
+					zone.run(() => {
+						component.instance[name]();
+					});
+				});
+			});
+		}
+	},
+);

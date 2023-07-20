@@ -48,6 +48,12 @@ pub(crate) struct PlaygroundInput {
 	pub(crate) config: PlaygroundInputConfig,
 }
 
+#[derive(Debug)]
+pub(crate) struct PlaygroundAction {
+	pub(crate) name: String,
+	pub(crate) description: String,
+}
+
 struct CodeBlockVisitor<'a> {
 	index: usize,
 	source: &'a str,
@@ -57,6 +63,7 @@ struct CodeBlockVisitor<'a> {
 	tag: Option<String>,
 	class_name: Option<String>,
 	inputs: Vec<PlaygroundInput>,
+	actions: Vec<PlaygroundAction>,
 
 	overwritten_source: Option<String>,
 }
@@ -124,26 +131,25 @@ impl<'a> CodeBlockVisitor<'a> {
 		}
 	}
 
-	fn extract_inputs(&mut self, class: &ast::Class) {
+	fn visit_class_members(&mut self, class: &ast::Class) {
 		for member in &class.body {
 			log::debug!("class member");
 
-			let Some(decorators) = get_decorators(member) else {
-				continue;
+			if let Some(decorators) = get_decorators(member) {
+				log::debug!("found {} decorators", decorators.len());
+
+				if includes_decorator_with_name(decorators, "Input") {
+					self.extract_input(member);
+				}
 			};
 
-			log::debug!("found {} decorators", decorators.len());
-
-			if includes_decorator_with_name(decorators, "Input") {
-				self.extract_input(member);
+			if let ast::ClassMember::Method(method) = member {
+				self.extract_action(method);
 			}
 		}
 	}
 
 	fn extract_input(&mut self, member: &ast::ClassMember) {
-		static COMMENT_LINE_PREAMBLE: Lazy<Regex> =
-			Lazy::new(|| Regex::new(r#"^\s*\*\s*"#).unwrap());
-
 		let Some(name) = prop_name(member) else {
 			return;
 		};
@@ -158,19 +164,13 @@ impl<'a> CodeBlockVisitor<'a> {
 			try_extract_default(value, &mut input.config);
 		}
 
-		let leading_comment = self
-			.comments
-			.get_leading(member.span_lo())
-			.and_then(|list| list.into_iter().next());
+		let leading_comment = self.get_leading_comment(member.span_lo());
 
 		if let Some(comment) = leading_comment {
-			let comment = comment.text.to_string();
 			let mut description: Vec<_> = Vec::new();
 
 			for line in comment.lines() {
-				let clean_line = COMMENT_LINE_PREAMBLE.replace(line, "");
-
-				if let Some(config) = clean_line.strip_prefix("@input") {
+				if let Some(config) = line.trim_start().strip_prefix("@input") {
 					match serde_json::from_str::<PlaygroundInputConfig>(config) {
 						Ok(config) => {
 							input.config.type_ = config.type_;
@@ -179,13 +179,13 @@ impl<'a> CodeBlockVisitor<'a> {
 							}
 						}
 						Err(err) => {
-							log::error!("Failed to parse input `{clean_line}`: {err}");
+							log::error!("Failed to parse input `{line}`: {err}");
 						}
 					};
 					break;
 				}
 
-				description.push(clean_line);
+				description.push(line);
 			}
 
 			if !description.is_empty() {
@@ -194,6 +194,37 @@ impl<'a> CodeBlockVisitor<'a> {
 		}
 
 		self.inputs.push(input);
+	}
+
+	fn extract_action(&mut self, method: &ast::ClassMethod) {
+		let Some(comment) = self.get_leading_comment(method.span_lo()) else { return };
+
+		if comment.contains("@action") {
+			let (ast::PropName::Ident(ast::Ident { sym: name, .. })
+			| ast::PropName::Str(ast::Str { value: name, .. })) = &method.key else { return };
+			let name = name.to_string();
+			let description = comment.replace("@action", "").trim().to_owned();
+
+			self.actions.push(PlaygroundAction { name, description });
+		}
+	}
+
+	fn get_leading_comment(&self, span_lo: BytePos) -> Option<String> {
+		self.comments
+			.get_leading(span_lo)
+			.and_then(|list| list.into_iter().next())
+			.map(|comment| {
+				static COMMENT_LINE_PREFIX: Lazy<Regex> =
+					Lazy::new(|| Regex::new(r"(?m)^[ \t]*\*(?:[ \t]|$)").unwrap());
+
+				let comment = comment.text.trim();
+				let comment = comment.strip_prefix("/*").unwrap_or(comment);
+				let comment = comment.strip_suffix("*/").unwrap_or(comment);
+
+				let comment = COMMENT_LINE_PREFIX.replace_all(comment, "");
+
+				comment.to_string()
+			})
 	}
 
 	fn visit_exported_class(&mut self, name: String, n: &ast::Class, mut span: Span) {
@@ -240,7 +271,7 @@ impl<'a> CodeBlockVisitor<'a> {
 				[(span.lo - START_OF_FILE).to_usize()..(span.hi - START_OF_FILE).to_usize()];
 		}
 
-		self.extract_inputs(n);
+		self.visit_class_members(n);
 	}
 }
 
@@ -341,6 +372,7 @@ pub(crate) struct CodeBlock {
 	pub(crate) tag: String,
 	pub(crate) class_name: String,
 	pub(crate) inputs: Vec<PlaygroundInput>,
+	pub(crate) actions: Vec<PlaygroundAction>,
 }
 
 impl CodeBlock {
@@ -388,6 +420,7 @@ impl CodeBlock {
 			class_name: class_name.map(ToOwned::to_owned),
 			comments,
 			inputs: Vec::new(),
+			actions: Vec::new(),
 			overwritten_source: None,
 		};
 
@@ -430,6 +463,7 @@ impl CodeBlock {
 			tag,
 			class_name,
 			inputs: code_block.inputs,
+			actions: code_block.actions,
 		})
 	}
 }

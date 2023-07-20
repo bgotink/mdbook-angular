@@ -32,11 +32,15 @@ pub(crate) fn generate_angular_code(
 		)?;
 
 		main.push_str(
-        format!(
-					"\nimport {{{} as CodeBlock_{index}}} from './component_{index}.js';\napplications.push(bootstrapApplication(CodeBlock_{index}, {{providers}}));\n",
-					file.class_name,
-				).as_str()
-			);
+			format!(
+				"\n\
+					import {{{} as CodeBlock_{index}}} from './component_{index}.js';\n\
+					applications.push(bootstrapApplication(CodeBlock_{index}, {{providers}}));\n\
+				",
+				file.class_name,
+			)
+			.as_str(),
+		);
 	}
 
 	let main_file_name = if experimental_builder {
@@ -69,25 +73,38 @@ pub(crate) fn generated_rendered_code_block(
 ) -> String {
 	let mut element = format!("<{0}></{0}>\n", &code_block.tag);
 
-	if add_playground && !code_block.inputs.is_empty() {
+	if !add_playground {
+		return element;
+	}
+
+	if !code_block.inputs.is_empty() {
 		*has_playgrounds = true;
 
 		let inputs = code_block
-									.inputs
-									.iter()
-									.map(|input| {
-										format!(
-											"<tr><td><code class=\"hljs\">{}</code></td><td>{}</td><td><mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input></td></tr>",
-											&input.name,
-											input
-												.description
-												.as_deref()
-												.unwrap_or(""),
-											index,
-											serde_json::to_string(&input.config).unwrap().replace('<', "&lt;")
-										)
-									})
-									.collect::<String>();
+			.inputs
+			.iter()
+			.map(|input| {
+				format!(
+					"\
+						<tr>\
+							<td>\
+								<code>{}</code>\
+							</td>\
+							<td>{}</td>\
+							<td>\
+								<mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input>\
+							</td>\
+						</tr>\
+					",
+					&input.name,
+					input.description.as_deref().unwrap_or(""),
+					index,
+					serde_json::to_string(&input.config)
+						.unwrap()
+						.replace('<', "&lt;")
+				)
+			})
+			.collect::<String>();
 
 		element.push_str(&format!(
 			"\n\
@@ -99,6 +116,41 @@ pub(crate) fn generated_rendered_code_block(
 						<th>Value</th>
 					</thead>\
 					<tbody>{inputs}</tbody>\
+				</table>\n\n\
+			"
+		));
+	}
+
+	if !code_block.actions.is_empty() {
+		*has_playgrounds = true;
+
+		let actions = code_block
+			.actions
+			.iter()
+			.map(|action| {
+				format!(
+					"\
+						<tr>\
+							<td>\
+								<mdbook-angular-action name=\"{}\" index=\"{}\"></mdbook-angular-action>\
+							</td>\
+							<td>{}</td>\
+						</tr>\
+					",
+					&action.name, index, action.description,
+				)
+			})
+			.collect::<String>();
+
+		element.push_str(&format!(
+			"\n\
+				Actions:\n\n\
+				<table>\
+					<thead>\
+						<th>Action</th>
+						<th>Description</th>
+					</thead>\
+					<tbody>{actions}</tbody>\
 				</table>\n\n\
 			"
 		));

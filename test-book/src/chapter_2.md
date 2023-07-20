@@ -24,5 +24,13 @@ export class TestComponent {
   increase() {
     this.counter.set(this.counter() + 1);
   }
+
+	/**
+	 * Reset the counter
+	 * @action
+	 */
+	reset() {
+		this.counter.set(0);
+	}
 }
 ```
