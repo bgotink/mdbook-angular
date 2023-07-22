@@ -1,62 +1,79 @@
 //! mdbook preprocessor that compiles and renders angular code samples
 
-mod codeblock;
-mod codeblock_collector;
+mod angular;
+pub(crate) mod codeblock;
+pub(crate) mod config;
+mod js;
+mod markdown;
 mod utils;
-mod worker;
 
 use std::{
 	env,
 	io::{self, Write},
 };
 
-use chrono::Local;
-
-use crate::worker::AngularWorker;
-use env_logger::Builder;
-use log::LevelFilter;
+use angular::build;
+use anyhow::Result;
+use config::Config;
+use markdown::process_markdown;
 use mdbook::{
-	errors::Error,
 	renderer::{HtmlHandlebars, RenderContext},
 	BookItem, Renderer,
 };
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
 	init_logger();
 
 	let mut ctx = RenderContext::from_json(io::stdin())?;
+	let config = Config::new(&ctx);
 
-	let valid_mdbook_versions = semver::VersionReq::parse(mdbook::MDBOOK_VERSION)?;
-	let actual_mdbook_version = semver::Version::parse(&ctx.version)?;
+	let mut chapters_with_codeblocks = Vec::new();
+	let mut result: Result<()> = Ok(());
 
-	if !valid_mdbook_versions.matches(&actual_mdbook_version) {
-		return Err(Error::msg(format!(
-			"Expected mdbook version {valid_mdbook_versions} but got {actual_mdbook_version}"
-		)));
+	ctx.book.for_each_mut(|item| {
+		if result.is_err() {
+			return;
+		}
+
+		if let BookItem::Chapter(chapter) = item {
+			log::debug!("Processing chapter {}", &chapter.name);
+			match process_markdown(&config, chapter) {
+				Ok(processed) => {
+					log::debug!("Processed chapter {}", &chapter.name);
+					if let Some(processed) = processed {
+						chapters_with_codeblocks.push(processed);
+					}
+				}
+				Err(error) => result = Err(error),
+			};
+		}
+	});
+
+	log::debug!("Processed chapters");
+
+	result?;
+
+	HtmlHandlebars::new().render(&ctx)?;
+
+	log::debug!("Finished rendering");
+
+	if !chapters_with_codeblocks.is_empty() {
+		build(&config, chapters_with_codeblocks)?;
 	}
 
-	let renderer = HtmlHandlebars::new();
-	let worker = prepare(&mut ctx)?;
-
-	if let Some(value) = ctx.config.get("output.angular.html") {
-		ctx.config.set("output.html", value.clone())?;
-	}
-
-	renderer.render(&ctx)?;
-
-	worker.finalize()?;
+	log::debug!("Finished");
 
 	Ok(())
 }
 
 fn init_logger() {
-	let mut builder = Builder::new();
+	let mut builder = env_logger::Builder::new();
 
 	builder.format(|formatter, record| {
 		writeln!(
 			formatter,
 			"{} [{}] ({}): {}",
-			Local::now().format("%Y-%m-%d %H:%M:%S"),
+			chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
 			record.level(),
 			record.target(),
 			record.args()
@@ -67,31 +84,10 @@ fn init_logger() {
 		builder.parse_filters(&var);
 	} else {
 		// if no RUST_LOG provided, default to logging at the Info level
-		builder.filter(None, LevelFilter::Info);
+		builder.filter(None, log::LevelFilter::Info);
 		// Filter extraneous html5ever not-implemented messages
-		builder.filter(Some("html5ever"), LevelFilter::Error);
+		builder.filter(Some("html5ever"), log::LevelFilter::Error);
 	}
 
 	builder.init();
-}
-
-fn prepare(ctx: &mut RenderContext) -> Result<AngularWorker, Error> {
-	let mut worker = AngularWorker::new(ctx)?;
-
-	let mut errors: Vec<Error> = Vec::new();
-
-	ctx.book.for_each_mut(|item| {
-		if let BookItem::Chapter(ref mut chapter) = item {
-			log::debug!("Processing chapter '{}'", chapter.name);
-			if let Err(err) = worker.process_chapter(chapter) {
-				errors.push(err.context(format!("in chapter {}", chapter.name)));
-			}
-		}
-	});
-
-	if let Some(error) = errors.into_iter().next() {
-		return Err(error);
-	}
-
-	Ok(worker)
 }
