@@ -9,4 +9,5 @@ pub(crate) struct CodeBlock {
 	pub(crate) playground: Option<Playground>,
 	pub(crate) tag: String,
 	pub(crate) class_name: String,
+	pub(crate) insert: bool,
 }

@@ -34,3 +34,21 @@ export class TestComponent {
 	}
 }
 ```
+
+## Section
+
+Lorem ipsum dolor sit amet, <test-exclaim></test-exclaim>
+
+```ts,angular,no-insert
+import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
+
+@Component({
+  selector: 'test-exclaim',
+  standalone: true,
+  template: `{{name}}!`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class TestComponent {
+  @Input() name = 'Bram';
+}
+```

@@ -70,6 +70,10 @@ All components used in the angular code blocks or imported via the `{{#angular}}
 live on the page.
 Every component will be bootstrapped as a _separate_ angular application via [`bootstrapApplication`](https://angular.io/api/platform-browser/bootstrapApplication).
 
+If the `no-insert` flag is not present, the live application will be added below the code block and above the playground.
+If the `insert` flag is set, the application will not be added to the page. Instead, you will be responsible for placing the application's element somewhere on the page.
+Note angular limits you to a single instance of the component, so placing the element on the page multiple times will not work.
+
 ### Playgrounds
 
 Components running as live examples can define inputs and actions.
@@ -151,6 +155,7 @@ The following flags can be passed on every angular code block:
 - `hide`: Don't show the code, but do include the running angular application and possibly the playground
 - `playground` / `no-playground`: Show or don't show a playground for the current application, regardless of whether the configuration allows playgrounds. The `playground` flag won't show a playground if the component doesn't warrant a playground.
 - `collapsed`: Place the code inside a `<details>` element, hiding it until the user clicks to uncollapse the element.
+- `no-insert`: Do not automatically insert the live application on the page. This allows you to write the element linked to the angular component once (and no more than once) on the page at a location of your choosing.
 
 ### Configuration
 

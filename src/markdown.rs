@@ -227,7 +227,10 @@ impl<'a> CodeBlockCollector<'a> {
 
 fn print_playground(index: usize, code_block: &CodeBlock) -> String {
 	let mut result = Vec::new();
-	result.push(format!("<{0}></{0}>", code_block.tag));
+
+	if code_block.insert {
+		result.push(format!("<{0}></{0}>", code_block.tag));
+	}
 
 	if let Some(playground) = &code_block.playground {
 		if !playground.inputs.is_empty() {
@@ -409,7 +412,8 @@ pub(crate) fn process_markdown(
 	);
 
 	new_content.push_str(&format!(
-		r#"<script type="module" {script_marker}></script>"#,
+		r#"{}<script type="module" {script_marker}></script>"#,
+		"\n\n"
 	));
 
 	chapter.content = new_content;

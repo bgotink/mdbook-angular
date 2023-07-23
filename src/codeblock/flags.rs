@@ -4,6 +4,7 @@ pub(super) enum CodeBlockFlags {
 	Playground,
 	NoPlayground,
 	Collapsed,
+	NoInsert,
 }
 
 fn to_flag(value: &str) -> Option<CodeBlockFlags> {
@@ -12,6 +13,7 @@ fn to_flag(value: &str) -> Option<CodeBlockFlags> {
 		"playground" => Some(CodeBlockFlags::Playground),
 		"noplayground" | "no-playground" => Some(CodeBlockFlags::NoPlayground),
 		"collapsed" | "collapse" => Some(CodeBlockFlags::Collapsed),
+		"no-insert" => Some(CodeBlockFlags::NoInsert),
 		_ => None,
 	}
 }

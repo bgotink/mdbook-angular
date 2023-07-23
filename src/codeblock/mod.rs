@@ -34,10 +34,12 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 	let flags = get_flags(&language);
 	let collapsed = flags.contains(&flags::CodeBlockFlags::Collapsed);
 
-	let allow_playground = if flags.contains(&flags::CodeBlockFlags::Playground) {
-		true
-	} else if flags.contains(&flags::CodeBlockFlags::NoPlayground) {
+	let insert = !flags.contains(&flags::CodeBlockFlags::NoInsert);
+
+	let allow_playground = if flags.contains(&flags::CodeBlockFlags::NoPlayground) {
 		false
+	} else if flags.contains(&flags::CodeBlockFlags::Playground) {
+		true
 	} else {
 		config.playgrounds
 	};
@@ -64,5 +66,6 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 		playground,
 		tag,
 		class_name,
+		insert,
 	})
 }
