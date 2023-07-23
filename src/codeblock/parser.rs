@@ -49,18 +49,21 @@ trait IntoError {
 }
 
 impl IntoError for Error {
+	#[inline]
 	fn into(self) -> Error {
 		self
 	}
 }
 
 impl IntoError for String {
+	#[inline]
 	fn into(self) -> Error {
 		Error::msg(self)
 	}
 }
 
 impl CodeBlockVisitor {
+	#[inline]
 	fn error<E: IntoError>(&mut self, error: E) {
 		if self.error.is_ok() {
 			self.error = Err(error.into());
@@ -210,9 +213,8 @@ impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
 		}
 
 		let Some(n) = n.decl.as_class() else { return };
-		let name = &n.ident.sym;
 
-		self.visit_exported_class(name, &n.class);
+		self.visit_exported_class(&n.ident.sym, &n.class);
 	}
 
 	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) {

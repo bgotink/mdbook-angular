@@ -104,6 +104,7 @@ fn extract_actions<C: comments::Comments>(
 		.collect()
 }
 
+#[inline]
 fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 	match prop_name {
 		ast::PropName::Ident(ast::Ident { sym, .. }) => Some(sym.as_ref()),
@@ -112,6 +113,7 @@ fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 	}
 }
 
+#[inline]
 fn get_leading_comment<T: comments::Comments, N: swc_common::Spanned>(
 	comments: &T,
 	node: &N,

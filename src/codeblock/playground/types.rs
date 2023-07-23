@@ -32,9 +32,9 @@ impl PlaygroundInputType {
 #[derive(Debug, PartialEq, Default, Serialize, Deserialize)]
 pub(crate) struct PlaygroundInputConfig {
 	#[serde(rename = "type", default)]
-	pub(crate) type_: PlaygroundInputType,
+	type_: PlaygroundInputType,
 	#[serde(rename = "default")]
-	pub(crate) default_: Option<Value>,
+	default_: Option<Value>,
 }
 
 pub(crate) trait PlaygroundInputConfigExt {
@@ -42,6 +42,7 @@ pub(crate) trait PlaygroundInputConfigExt {
 }
 
 impl PlaygroundInputConfigExt for PlaygroundInputConfig {
+	#[inline]
 	fn extend(self, config: PlaygroundInputConfig) -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			default_: self.default_.or(config.default_),
@@ -55,6 +56,7 @@ impl PlaygroundInputConfigExt for PlaygroundInputConfig {
 }
 
 impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
+	#[inline]
 	fn extend(self, config: PlaygroundInputConfig) -> PlaygroundInputConfig {
 		if let Some(self_) = self {
 			self_.extend(config)
@@ -65,21 +67,24 @@ impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
 }
 
 impl PlaygroundInputConfig {
-	pub(crate) fn new(
+	#[inline]
+	pub(super) fn new(
 		default_: Option<Value>,
 		type_: PlaygroundInputType,
 	) -> PlaygroundInputConfig {
 		PlaygroundInputConfig { type_, default_ }
 	}
 
-	pub(crate) fn from_type(type_: PlaygroundInputType) -> PlaygroundInputConfig {
+	#[inline]
+	pub(super) fn from_type(type_: PlaygroundInputType) -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_,
 			default_: None,
 		}
 	}
 
-	pub(crate) fn from_default(default_: Value) -> PlaygroundInputConfig {
+	#[inline]
+	pub(super) fn from_default(default_: Value) -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_: match &default_ {
 				Value::Bool(_) => PlaygroundInputType::Boolean,
