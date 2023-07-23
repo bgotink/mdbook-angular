@@ -15,7 +15,7 @@ use pulldown_cmark_to_cmark::cmark as markdown_to_string;
 use regex::Regex;
 
 use crate::{
-	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock},
+	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock, PrintedCodeBlock},
 	config::Config,
 };
 
@@ -175,32 +175,32 @@ impl<'a> CodeBlockCollector<'a> {
 			Ok(code_block) => {
 				let mut events = Vec::new();
 
-				if code_block.collapsed {
-					events.push(Event::Html(CowStr::Boxed(
-						"<details><summary>Show code</summary>\n\n"
-							.to_owned()
-							.into_boxed_str(),
+				if let Some(PrintedCodeBlock { code, collapsed }) = &code_block.code_to_print {
+					if *collapsed {
+						events.push(Event::Html(CowStr::Boxed(
+							"<details><summary>Show code</summary>\n\n"
+								.to_owned()
+								.into_boxed_str(),
+						)));
+					}
+
+					events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
+						CowStr::Boxed(language.to_owned().into_boxed_str()),
+					))));
+
+					events.push(Event::Text(CowStr::Boxed(
+						Rc::as_ref(code).clone().into_boxed_str(),
 					)));
-				}
 
-				events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
-					CowStr::Boxed(language.to_owned().into_boxed_str()),
-				))));
+					events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
+						CowStr::Boxed(language.to_owned().into_boxed_str()),
+					))));
 
-				events.push(Event::Text(CowStr::Boxed(
-					Rc::as_ref(&code_block.code_to_print)
-						.clone()
-						.into_boxed_str(),
-				)));
-
-				events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
-					CowStr::Boxed(language.to_owned().into_boxed_str()),
-				))));
-
-				if code_block.collapsed {
-					events.push(Event::Html(CowStr::Boxed(
-						"</details>\n\n".to_owned().into_boxed_str(),
-					)));
+					if *collapsed {
+						events.push(Event::Html(CowStr::Boxed(
+							"</details>\n\n".to_owned().into_boxed_str(),
+						)));
+					}
 				}
 
 				events.push(Event::Html(CowStr::Boxed(

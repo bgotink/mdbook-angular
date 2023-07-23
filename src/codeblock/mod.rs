@@ -6,7 +6,7 @@ mod types;
 use std::path::Path;
 
 use anyhow::Result;
-pub(crate) use types::CodeBlock;
+pub(crate) use types::{CodeBlock, PrintedCodeBlock};
 
 use crate::config::Config;
 
@@ -32,6 +32,8 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 	let code = code.as_ref();
 
 	let flags = get_flags(&language);
+
+	let hidden = flags.contains(&flags::CodeBlockFlags::Hide);
 	let collapsed = flags.contains(&flags::CodeBlockFlags::Collapsed);
 
 	let insert = !flags.contains(&flags::CodeBlockFlags::NoInsert);
@@ -59,13 +61,21 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 		reexport_path,
 	)?;
 
+	let code_to_print = if hidden {
+		None
+	} else {
+		Some(PrintedCodeBlock {
+			code: code_to_print,
+			collapsed,
+		})
+	};
+
 	Ok(CodeBlock {
 		code_to_print,
 		code_to_run,
-		collapsed,
-		playground,
-		tag,
 		class_name,
 		insert,
+		tag,
+		playground,
 	})
 }

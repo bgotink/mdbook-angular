@@ -1,9 +1,16 @@
 #[derive(PartialEq, Eq, Debug)]
 pub(super) enum CodeBlockFlags {
+	/// Do not show the source code
 	Hide,
-	Playground,
-	NoPlayground,
+	/// Show the source code collapsed
 	Collapsed,
+
+	/// Show a playground even if configuration disables them
+	Playground,
+	/// Do not show a playground even if configuration allows them
+	NoPlayground,
+
+	/// Do not insert the Angular root element into the page
 	NoInsert,
 }
 
@@ -22,8 +29,12 @@ fn is_flag_separator(c: char) -> bool {
 	c == ',' || c == ' '
 }
 
-pub(super) fn get_flags(language: &str) -> Vec<CodeBlockFlags> {
-	language
+/// Extract flags from the given string
+///
+/// The text should contain flags separated by space or comma.
+/// Unknown flags are ignored.
+pub(super) fn get_flags(string: &str) -> Vec<CodeBlockFlags> {
+	string
 		.split(is_flag_separator)
 		.filter_map(to_flag)
 		.collect()
