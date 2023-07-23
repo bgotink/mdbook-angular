@@ -94,14 +94,14 @@ If the input has a default value, the type will be inferred when possible.
 
 You can configure the input's type and default value in the playground by adding an explicit `@input` to a comment above the `@Input()` property. Immediately following the `@input` must be a valid JSON object with key "type" and optional key "default".
 
-The following two properties will both be detected as a "text" input with a default value "Bram".
+The following two properties will both be detected as a "string" input with a default value "Bram".
 
 ```ts
 // explicit:
 
 /**
  * Author of this document
- * @input {"type": "text", "default": "Bram"}
+ * @input {"type": "string", "default": "Bram"}
  */
 @Input()
 author;
@@ -129,7 +129,7 @@ timeOfDay = "evening";
 
 The `"type"` property passed in the `@input` JSON object supports the following values:
 
-- `"text"`
+- `"string"`
 - `"number"`
 - `"boolean"`
 - an object with a single key `"enum"` pointing towards an array of strings.
