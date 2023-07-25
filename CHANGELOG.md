@@ -4,6 +4,10 @@
 
 <!-- add new items here -->
 
+## v0.0.3
+
+- Publish built binaries on GitHub
+
 ## v0.0.2
 
 - Fix the `hide` flag
