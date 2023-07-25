@@ -4,7 +4,10 @@
 		"test-book"
 	],
 	"scripts": {
-		"postinstall": "is-ci || husky install"
+		"postinstall": "is-ci || scripts/is-cargo || husky install",
+		"build-scripts": "run build-scripts:playground && run build-scripts:builder",
+		"build-scripts:builder": "esbuild --minify --format=esm --loader=js <src/js/experimental-builder/builder.mjs >src/js/experimental-builder/builder.min.mjs",
+		"build-scripts:playground": "esbuild --minify --format=esm --loader=js <src/js/playground-io.js >src/js/playground-io.min.js"
 	},
 	"devDependencies": {
 		"esbuild": "^0.18.12",

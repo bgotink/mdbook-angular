@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+if test -n "$CARGO"; then
+	exit 0
+else
+	exit 1
+fi

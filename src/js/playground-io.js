@@ -1,3 +1,5 @@
+// If you change this file, run `yarn build-scripts`
+
 /** @type {typeof document.createElement} */
 let create = name => document.createElement(name);
 let attr = (self, name) => self.getAttribute(name);

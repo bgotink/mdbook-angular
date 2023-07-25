@@ -1,3 +1,5 @@
+// If you change this file, run `yarn build-scripts`
+
 import {buildApplicationInternal} from '@angular-devkit/build-angular/src/builders/application/index.js';
 import {createBuilder} from '@angular-devkit/architect';
 import fs from 'node:fs';

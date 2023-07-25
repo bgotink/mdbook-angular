@@ -8,6 +8,7 @@ description = "mdbook renderer to run angular code samples"
 repository = "https://github.com/bgotink/mdbook-angular"
 keywords = ["mdbook", "angular"]
 categories = ["text-processing"]
+exclude = ["node_modules", ".husky", ".vscode", ".prettier*"]
 
 [dependencies]
 # Disable colored logging, we run through mdbook which means env_logger doesn't
