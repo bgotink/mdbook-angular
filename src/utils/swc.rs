@@ -2,8 +2,10 @@ use std::{borrow::Cow, collections::VecDeque};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use swc_common::comments::{self, CommentKind};
-use swc_ecmascript::ast;
+use swc_core::{
+	common::comments::{self, CommentKind},
+	ecma::ast,
+};
 
 pub(crate) fn clean_comment(comment: &comments::Comment) -> String {
 	static COMMENT_BLOCK_LINE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*\*\s?").unwrap());

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use serde_json::{Number, Value};
-use swc_common::comments;
-use swc_ecmascript::ast;
+use swc_core::{common::comments, ecma::ast};
 
 use crate::utils::swc::{clean_comment, get_decorator};
 
@@ -114,7 +113,7 @@ fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 }
 
 #[inline]
-fn get_leading_comment<T: comments::Comments, N: swc_common::Spanned>(
+fn get_leading_comment<T: comments::Comments, N: swc_core::common::Spanned>(
 	comments: &T,
 	node: &N,
 ) -> Option<comments::Comment> {

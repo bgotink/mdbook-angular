@@ -3,16 +3,18 @@ use std::{io, path::Path, rc::Rc};
 use anyhow::{Error, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use swc_common::{
-	comments::SingleThreadedComments,
-	errors::{Handler, HANDLER},
-	source_map::Pos,
-	BytePos, FileName, SourceFile, Span, Spanned,
-};
-use swc_ecmascript::{
-	ast::{self, EsVersion},
-	parser::{self, Syntax, TsConfig},
-	visit::VisitWith,
+use swc_core::{
+	common::{
+		comments::SingleThreadedComments,
+		errors::{Handler, HANDLER},
+		source_map::Pos,
+		BytePos, FileName, SourceFile, Span, Spanned,
+	},
+	ecma::{
+		ast::{self, EsVersion},
+		parser::{self, Syntax, TsConfig},
+		visit::VisitWith,
+	},
 };
 
 use crate::utils::swc::get_decorator;
@@ -206,7 +208,7 @@ impl CodeBlockVisitor {
 	}
 }
 
-impl swc_ecmascript::visit::Visit for CodeBlockVisitor {
+impl swc_core::ecma::visit::Visit for CodeBlockVisitor {
 	fn visit_export_decl(&mut self, n: &ast::ExportDecl) {
 		if self.error.is_err() {
 			return;
