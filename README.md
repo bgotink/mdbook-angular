@@ -206,16 +206,13 @@ None of these settings are required, the default values are shown in the code ab
 This project requires mdbook and angular to be installed
 
 ```shell
-cargo install mdbook
 yarn install
+cargo install mdbook
 ```
 
 Build the project
 
 ```shell
-# only if you updated src/js/playground-io.js
-yarn build-script
-
 cargo build
 ```
 
@@ -223,6 +220,10 @@ Then run the following command inside the `test-book` folder
 
 ```shell
 yarn exec mdbook serve
+
+# if you've got @angular/cli installed globally, you can also run
+mdbook serve
+# directly
 ```
 
 and point your browser towards `http://localhost:3000`

@@ -1,4 +1,5 @@
 *.min.js
+*.min.mjs
 
 test-book/book
 .angular

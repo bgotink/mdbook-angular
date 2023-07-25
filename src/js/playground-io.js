@@ -1,13 +1,18 @@
+/** @type {typeof document.createElement} */
+let create = name => document.createElement(name);
+let attr = (self, name) => self.getAttribute(name);
+let on = (element, name, listener) => element.addEventListener(name, listener);
+
 customElements.define(
 	'mdbook-angular-input',
 	class MdbookAngularInputElement extends HTMLElement {
-		processed = false;
+		#processed = false;
 
 		connectedCallback() {
-			if (this.processed) {
+			if (this.#processed) {
 				return;
 			}
-			this.processed = true;
+			this.#processed = true;
 
 			const config = JSON.parse(this.innerText);
 
@@ -15,10 +20,10 @@ customElements.define(
 			let getValue;
 
 			if (typeof config.type === 'object' && 'enum' in config.type) {
-				input = document.createElement('select');
+				input = create('select');
 				input.append(
 					...config.type.enum.map(value => {
-						const option = document.createElement('option');
+						const option = create('option');
 						option.value = value;
 						option.innerText = value;
 						option.checked = value === config.default;
@@ -30,7 +35,7 @@ customElements.define(
 			} else {
 				switch (config.type) {
 					case 'number': {
-						input = document.createElement('input');
+						input = create('input');
 						input.type = 'number';
 						input.valueAsNumber = config.default;
 
@@ -38,7 +43,7 @@ customElements.define(
 						break;
 					}
 					case 'boolean': {
-						input = document.createElement('input');
+						input = create('input');
 						input.type = 'checkbox';
 						input.checked = config.default;
 
@@ -46,7 +51,7 @@ customElements.define(
 						break;
 					}
 					default: {
-						input = document.createElement('input');
+						input = create('input');
 						input.type = 'text';
 						input.value = config.default || '';
 
@@ -62,8 +67,8 @@ customElements.define(
 
 			this.append(input);
 
-			const name = this.getAttribute('name');
-			const index = +this.getAttribute('index');
+			const name = attr(self, 'name');
+			const index = +attr(self, 'index');
 
 			function update() {
 				let app =
@@ -93,8 +98,8 @@ customElements.define(
 				throttleTimeout = setTimeout(update, 300);
 			}
 
-			input.addEventListener('change', update);
-			input.addEventListener('input', throttledUpdate);
+			on(input, 'change', update);
+			on(input, 'input', throttledUpdate);
 		}
 	},
 );
@@ -102,28 +107,28 @@ customElements.define(
 customElements.define(
 	'mdbook-angular-action',
 	class MdbookAngularActionElement extends HTMLElement {
-		processed = false;
+		#processed = false;
 
 		connectedCallback() {
-			if (this.processed) {
+			if (this.#processed) {
 				return;
 			}
-			this.processed = true;
+			this.#processed = true;
 
 			while (this.firstChild) {
 				this.firstChild.remove();
 			}
 
-			const name = this.getAttribute('name');
-			const index = +this.getAttribute('index');
+			const name = attr(self, 'name');
+			const index = +attr(self, 'index');
 
-			const button = document.createElement('button');
-			const code = document.createElement('code');
+			const button = create('button');
+			const code = create('code');
 			code.append(`${name}()`);
 			button.append(code);
 			this.append(button);
 
-			button.addEventListener('click', () => {
+			on(button, 'click', () => {
 				let app =
 					/** @type {Promise<import('@angular/core').ApplicationRef>} */ (
 						mdBookAngular.applications[index]

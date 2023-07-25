@@ -4,8 +4,7 @@
 		"test-book"
 	],
 	"scripts": {
-		"postinstall": "is-ci || husky install",
-		"build-script": "esbuild --minify --loader=js <src/js/playground-io.js >src/js/playground-io.min.js"
+		"postinstall": "is-ci || husky install"
 	},
 	"devDependencies": {
 		"esbuild": "^0.18.12",
