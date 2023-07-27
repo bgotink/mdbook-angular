@@ -13,7 +13,6 @@ use swc_core::{
 	ecma::{
 		ast::{self, EsVersion},
 		parser::{self, Syntax, TsConfig},
-		visit::VisitWith,
 	},
 };
 
@@ -42,37 +41,10 @@ struct CodeBlockVisitor {
 	playground: Option<Playground>,
 	tag: Option<String>,
 	class_name: Option<String>,
-
-	error: Result<()>,
-}
-
-trait IntoError {
-	fn into(self) -> Error;
-}
-
-impl IntoError for Error {
-	#[inline]
-	fn into(self) -> Error {
-		self
-	}
-}
-
-impl IntoError for String {
-	#[inline]
-	fn into(self) -> Error {
-		Error::msg(self)
-	}
 }
 
 impl CodeBlockVisitor {
-	#[inline]
-	fn error<E: IntoError>(&mut self, error: E) {
-		if self.error.is_ok() {
-			self.error = Err(error.into());
-		}
-	}
-
-	fn get_selector(&mut self, decorator: &ast::ObjectLit, name: &str) -> Option<String> {
+	fn get_selector(&mut self, decorator: &ast::ObjectLit, name: &str) -> Result<String> {
 		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
 
 		let selector = decorator
@@ -94,21 +66,20 @@ impl CodeBlockVisitor {
 			});
 
 			return if let Some(selector) = selector {
-				Some(selector.to_owned())
+				Ok(selector.to_owned())
 			} else {
-				self.error(format!("Selector isn't a string literal in class {name}"));
-				None
+				Err(Error::msg(format!(
+					"Selector isn't a string literal in class {name}"
+				)))
 			};
 		}
 
 		let Some(generated_selector) = self.index.map(|i| format!("codeblock-{i}")) else {
-			self.error(format!("Coudldn't find selector on class {name}"));
-			return None;
+			return Err(Error::msg(format!("Coudldn't find selector on class {name}")));
 		};
 
 		let Some(first_prop) = decorator.props.first() else {
-			self.error(format!("Unexpected empty @Component annotation in {name}"));
-			return None;
+			return Err(Error::msg(format!("Unexpected empty @Component annotation in {name}")));
 		};
 
 		let span = first_prop.span();
@@ -139,20 +110,20 @@ impl CodeBlockVisitor {
 
 		self.code_to_print = Some(overwritten_source);
 
-		Some(generated_selector)
+		Ok(generated_selector)
 	}
 
-	fn visit_exported_class(&mut self, name: &str, node: &ast::Class) {
+	fn visit_exported_class(&mut self, name: &str, node: &ast::Class) -> Result<()> {
 		if let Some(expected_name) = &self.class_name {
 			if name.ne(expected_name) {
-				return;
+				return Ok(());
 			}
 		}
 
 		log::debug!("Visiting class {name}");
 
 		let Some(component) = get_decorator(&node.decorators, "Component") else {
-			return;
+			return Ok(());
 		};
 
 		log::debug!("found @Component on {name}");
@@ -160,33 +131,23 @@ impl CodeBlockVisitor {
 		let Some(component) = component.expr.as_call()
 			.and_then(|call| call.args.get(0))
 			.and_then(|arg| arg.expr.as_object())
-			else { return };
+			else { return Ok(()); };
 
 		if self.tag.is_some() {
-			self.error(format!(
+			return Err(Error::msg(format!(
 				"File contains more than one exported component class: {} and {}",
 				self.tag.as_ref().unwrap(),
 				name
-			));
-			return;
+			)));
 		}
 
-		let Some(selector) = self.get_selector(component, name) else {
-			// error already logged
-			return;
-		};
+		let selector = self.get_selector(component, name)?;
 
 		self.tag = Some(selector);
 		self.class_name = Some(name.to_owned());
 
 		if self.allow_playground {
-			self.playground = match parse_playground(node, &self.comments) {
-				Ok(playground) => playground,
-				Err(e) => {
-					self.error(e);
-					return;
-				}
-			}
+			self.playground = parse_playground(node, &self.comments)?;
 		}
 
 		if self.code_to_print.is_none() {
@@ -205,28 +166,44 @@ impl CodeBlockVisitor {
 					.to_owned(),
 			);
 		}
-	}
-}
 
-impl swc_core::ecma::visit::Visit for CodeBlockVisitor {
-	fn visit_export_decl(&mut self, n: &ast::ExportDecl) {
-		if self.error.is_err() {
-			return;
-		}
-
-		let Some(n) = n.decl.as_class() else { return };
-
-		self.visit_exported_class(&n.ident.sym, &n.class);
+		Ok(())
 	}
 
-	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) {
-		if self.error.is_err() {
-			return;
+	fn visit_export_decl(&mut self, n: &ast::ExportDecl) -> Result<()> {
+		if let Some(n) = n.decl.as_class() {
+			self.visit_exported_class(&n.ident.sym, &n.class)?;
 		}
 
-		let Some(n) = n.decl.as_class() else { return };
+		Ok(())
+	}
 
-		self.visit_exported_class("default", &n.class);
+	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) -> Result<()> {
+		if let Some(n) = n.decl.as_class() {
+			self.visit_exported_class("default", &n.class)?;
+		};
+
+		Ok(())
+	}
+
+	fn visit_program(&mut self, n: &ast::Program) -> Result<()> {
+		let ast::Program::Module(module) = n else {
+			return Err(Error::msg("Expected a module but got a script"));
+		};
+
+		for statement in &module.body {
+			let ast::ModuleItem::ModuleDecl(decl) = statement else {
+				continue;
+			};
+
+			match decl {
+				ast::ModuleDecl::ExportDefaultDecl(n) => self.visit_export_default_decl(n)?,
+				ast::ModuleDecl::ExportDecl(n) => self.visit_export_decl(n)?,
+				_ => {}
+			};
+		}
+
+		Ok(())
 	}
 }
 
@@ -283,12 +260,9 @@ pub(super) fn parse_codeblock(
 		playground: None,
 		code_to_print: code_to_print.map(ToOwned::to_owned),
 		tag: None,
-		error: Ok(()),
 	};
 
-	HANDLER.set(&handler, || program.visit_with(&mut visitor));
-
-	visitor.error?;
+	HANDLER.set(&handler, || visitor.visit_program(&program))?;
 
 	let Some(class_name) = visitor.class_name else {
 		return Err(
