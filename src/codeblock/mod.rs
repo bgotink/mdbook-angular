@@ -5,10 +5,9 @@ mod types;
 
 use std::path::Path;
 
-use anyhow::Result;
 pub(crate) use types::{CodeBlock, PrintedCodeBlock};
 
-use crate::config::Config;
+use crate::{Config, Result};
 
 use self::{
 	flags::get_flags,

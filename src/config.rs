@@ -1,17 +1,54 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use mdbook::renderer::RenderContext;
 use toml::Value;
 
+use crate::Result;
+
+/// Configuration for mdbook-angular
 #[allow(clippy::struct_excessive_bools)] // this is config, not a state machine
-pub(crate) struct Config {
-	pub(crate) background: bool,
-	pub(crate) experimental_builder: bool,
-	pub(crate) playgrounds: bool,
-	pub(crate) tsconfig: Option<PathBuf>,
-	pub(crate) inline_style_language: String,
-	pub(crate) optimize: bool,
+pub struct Config {
+	/// Whether to enable the experimental background builder
+	///
+	/// Enabling this option runs the angular build in a background process,
+	/// triggering a watch instead of an entire new build whenever mdbook notices
+	/// a change.
+	/// This is considerably faster.
+	///
+	/// This option requires the [`Config.experimental_builder`] option to be enabled.
+	/// It only works on builds with the "background" feature enabled, and it only
+	/// works on platforms rustc considers "unix".
+	/// This option is no-op for commands that don't watch the book source for
+	/// changes.
+	///
+	/// Default value: `false`
+	pub background: bool,
+	/// Whether to use an experimental builder (requires angular ≥ 16.2.0)
+	///
+	/// If enabled, all chapters in the book will be built in a single go. If
+	/// disabled, every chapter is built separately as angular application.
+	///
+	/// Default value: `false`
+	pub experimental_builder: bool,
+	/// Whether playgrounds are enabled by default
+	///
+	/// This can be overridden via `playground` or `no-playground` tag on every
+	/// individual code block or `{{#angular}}` tag.
+	///
+	/// Default value: `true`
+	pub playgrounds: bool,
+	/// Path to a tsconfig to use for building, relative to the `book.toml` file
+	pub tsconfig: Option<PathBuf>,
+	/// The inline style language the angular compiler should use
+	///
+	/// Default value: `"css"`
+	pub inline_style_language: String,
+	/// Whether to optimize the angular applications
+	///
+	/// This option is ignored if background is active
+	///
+	/// Default value: `false`
+	pub optimize: bool,
 
 	pub(crate) book_source_folder: PathBuf,
 	pub(crate) angular_root_folder: PathBuf,
@@ -19,7 +56,12 @@ pub(crate) struct Config {
 }
 
 impl Config {
-	pub(super) fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
+	/// Read mdbook-angular [`Config`] from the `book.toml` file inside the given folder.
+	///
+	/// # Errors
+	///
+	/// This function will return an error if reading the `book.toml` fails.
+	pub fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
 		let root = root.as_ref();
 		let mut cfg = mdbook::Config::from_disk(root.join("book.toml"))?;
 		cfg.update_from_env();
@@ -32,7 +74,8 @@ impl Config {
 		))
 	}
 
-	pub(super) fn new(ctx: &RenderContext) -> Self {
+	/// Create mdbook-angular configuration [`Config`] from the given render context.
+	pub fn new(ctx: &RenderContext) -> Self {
 		Self::from_config(&ctx.config, &ctx.root, ctx.destination.clone())
 	}
 

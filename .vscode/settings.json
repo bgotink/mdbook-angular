@@ -19,6 +19,7 @@
 		"-Wclippy::str_to_string",
 		"-Wclippy::string_to_string",
 		"-Wclippy::unnecessary_self_imports",
-		"-Wclippy::use_debug"
+		"-Wclippy::use_debug",
+		"-Aclippy::must_use_candidate"
 	]
 }

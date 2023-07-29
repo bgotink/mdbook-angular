@@ -1,6 +1,6 @@
 use std::{io, path::Path, rc::Rc};
 
-use anyhow::{Error, Result};
+use log::debug;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use swc_core::{
@@ -16,7 +16,7 @@ use swc_core::{
 	},
 };
 
-use crate::utils::swc::get_decorator;
+use crate::{utils::swc::get_decorator, Error, Result};
 
 use super::playground::{parse_playground, Playground};
 
@@ -120,13 +120,13 @@ impl CodeBlockVisitor {
 			}
 		}
 
-		log::debug!("Visiting class {name}");
+		debug!("Visiting class {name}");
 
 		let Some(component) = get_decorator(&node.decorators, "Component") else {
 			return Ok(());
 		};
 
-		log::debug!("found @Component on {name}");
+		debug!("found @Component on {name}");
 
 		let Some(component) = component.expr.as_call()
 			.and_then(|call| call.args.get(0))

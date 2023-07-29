@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, path::Path};
 
 use serde::Serialize;
 use serde_json::Value;
+
+use crate::Result;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(super) struct AngularWorkspace {
@@ -28,6 +30,11 @@ impl AngularWorkspace {
 		);
 
 		self.projects.get_mut(name).unwrap()
+	}
+
+	pub(super) fn write(&self, root: &Path) -> Result<()> {
+		fs::write(root.join("angular.json"), serde_json::to_string(self)?)?;
+		Ok(())
 	}
 }
 

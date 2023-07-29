@@ -6,7 +6,6 @@ use std::{
 	rc::Rc,
 };
 
-use anyhow::{Error, Result};
 use mdbook::book::Chapter;
 use once_cell::sync::Lazy;
 use pathdiff::diff_paths;
@@ -16,7 +15,7 @@ use regex::Regex;
 
 use crate::{
 	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock, PrintedCodeBlock},
-	config::Config,
+	Config, Error, Result,
 };
 
 struct CodeBlockCollector<'a> {

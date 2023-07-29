@@ -16,10 +16,15 @@ use std::{
 	process::{self, exit, Command},
 };
 
-use anyhow::{bail, Context, Result};
-use log::{debug, info};
+use log::{debug, error, info};
 
-use crate::config::Config;
+use crate::{
+	angular::builder::{
+		experimental::PROJECT_NAME,
+		utils::{ANGULAR_CLI_CMD, TARGET_NAME},
+	},
+	bail, Config, Context, Result,
+};
 
 fn open_pid_file(
 	config: &Config,
@@ -160,14 +165,14 @@ pub(super) fn start(config: &Config) -> Result<()> {
 
 	fs::write(pid_file_path, format!("{}", process::id()))?;
 
-	let err = Command::new("ng")
-		.arg("build")
-		.arg("application")
+	let err = Command::new(ANGULAR_CLI_CMD)
+		.arg(TARGET_NAME)
+		.arg(PROJECT_NAME)
 		.arg("--watch")
 		.current_dir(&config.angular_root_folder)
 		.exec();
 
-	log::error!("Failed to exec angular: {}", err);
+	error!("Failed to exec angular: {}", err);
 
 	#[allow(clippy::exit)]
 	exit(1);

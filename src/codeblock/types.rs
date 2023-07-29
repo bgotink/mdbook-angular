@@ -10,7 +10,7 @@ pub(crate) struct PrintedCodeBlock {
 }
 
 /// A block of angular code that will be shown with a live code sample
-pub(crate) struct CodeBlock {
+pub struct CodeBlock {
 	/// The code to show on the page
 	pub(crate) code_to_print: Option<PrintedCodeBlock>,
 

@@ -10,6 +10,10 @@ keywords = ["mdbook", "angular"]
 categories = ["text-processing"]
 exclude = ["node_modules", ".husky", ".vscode", ".prettier*"]
 
+[[bin]]
+name = "mdbook-angular"
+doc = false
+
 [dependencies]
 # Disable colored logging, we run through mdbook which means env_logger doesn't
 # detect a TTY anyway

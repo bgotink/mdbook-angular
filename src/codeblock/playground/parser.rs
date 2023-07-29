@@ -1,8 +1,10 @@
-use anyhow::Result;
 use serde_json::{Number, Value};
 use swc_core::{common::comments, ecma::ast};
 
-use crate::utils::swc::{clean_comment, get_decorator};
+use crate::{
+	utils::swc::{clean_comment, get_decorator},
+	Result,
+};
 
 use super::types::{
 	Playground, PlaygroundAction, PlaygroundInput, PlaygroundInputConfig, PlaygroundInputConfigExt,

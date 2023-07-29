@@ -41,13 +41,13 @@ The `{{#angular}}` tag comes in two flavours: you either point towards a file, o
 
 The format of the tag is
 
-```
+```text
 {{#angular <file>[#<exportName>][ flag]*}}
 ```
 
 Some examples:
 
-```
+```markdown
 {{#angular ./example.ts}}
 {{#angular ./example.ts hide playground}}
 {{#angular ./example.ts#ExampleOneComponent no-playground}}
@@ -178,7 +178,12 @@ workdir = "mdbook_angular"
 # Enable an experimental builder that builds the entire book in a
 # single angular build (requires angular ≥ 16.2.0), instead of building
 # every chapter separately.
-experimentalBuilder = true
+experimental-builder = true
+
+# Run the angular build in a background process to speed up rebuilds by
+# having the Angular build watch instead of triggering a new build every time.
+# This option requires `experimental-builder`
+background = true
 
 # Whether to allow playgrounds, i.e. to add inputs and actions to the page
 # allowing your readers to interact with the running code blocks.
@@ -193,7 +198,7 @@ playgrounds = true
 tsconfig = # empty by default
 
 # Language to use for inline styles
-inlineStyleLanguage = "css"
+inline-style-language = "css"
 
 # Whether to create an optimized angular build or not
 optimize = false
