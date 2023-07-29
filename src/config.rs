@@ -1,9 +1,12 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use mdbook::renderer::RenderContext;
 use toml::Value;
 
+#[allow(clippy::struct_excessive_bools)] // this is config, not a state machine
 pub(crate) struct Config {
+	pub(crate) background: bool,
 	pub(crate) experimental_builder: bool,
 	pub(crate) playgrounds: bool,
 	pub(crate) tsconfig: Option<PathBuf>,
@@ -16,50 +19,68 @@ pub(crate) struct Config {
 }
 
 impl Config {
+	pub(super) fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
+		let root = root.as_ref();
+		let mut cfg = mdbook::Config::from_disk(root.join("book.toml"))?;
+		cfg.update_from_env();
+
+		Ok(Self::from_config(
+			&cfg,
+			root,
+			// Incorrect if there are multiple backends, but... good enough?
+			root.join(&cfg.build.build_dir),
+		))
+	}
+
 	pub(super) fn new(ctx: &RenderContext) -> Self {
-		let experimental_builder = ctx
-			.config
+		Self::from_config(&ctx.config, &ctx.root, ctx.destination.clone())
+	}
+
+	fn from_config(config: &mdbook::Config, root: &Path, destination: PathBuf) -> Self {
+		let experimental_builder = config
 			.get("output.angular.experimentalBuilder")
 			.and_then(Value::as_bool)
 			.unwrap_or(true);
 
-		let playgrounds = ctx
-			.config
+		let background = config
+			.get("output.angular.background")
+			.and_then(Value::as_bool)
+			.unwrap_or(false);
+
+		let playgrounds = config
 			.get("output.angular.playgrounds")
 			.and_then(Value::as_bool)
 			.unwrap_or(true);
 
-		let tsconfig = ctx
-			.config
+		let tsconfig = config
 			.get("output.angular.tsconfig")
 			.and_then(Value::as_str)
-			.map(|tsconfig| ctx.root.join(tsconfig));
+			.map(|tsconfig| root.join(tsconfig));
 
-		let inline_style_language = ctx
-			.config
+		let inline_style_language = config
 			.get("output.angular.inlineStyleLanguage")
 			.and_then(Value::as_str)
 			.unwrap_or("css")
 			.to_owned();
 
-		let optimize = ctx
-			.config
+		let optimize = config
 			.get("output.angular.optimize")
 			.and_then(Value::as_bool)
 			.unwrap_or(false);
 
-		let book_source_folder = ctx.source_dir();
+		let book_source_folder = root.join(&config.book.src);
 
-		let angular_root_folder = ctx.root.join(
-			ctx.config
+		let angular_root_folder = root.join(
+			config
 				.get("output.angular.workdir")
 				.and_then(Value::as_str)
 				.unwrap_or("mdbook_angular"),
 		);
 
-		let target_folder = ctx.destination.clone();
+		let target_folder = destination;
 
 		Config {
+			background,
 			experimental_builder,
 			playgrounds,
 			tsconfig,

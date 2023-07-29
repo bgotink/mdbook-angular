@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{Error, Result};
+use mdbook::renderer::RenderContext;
 use pathdiff::diff_paths;
 use serde_json::json;
 
@@ -27,22 +28,20 @@ struct PostBuildReplacement {
 	project_folder: String,
 	script_basename: String,
 	script_marker: String,
+	made_changes_to_scripts: bool,
 }
 
 pub(super) enum Writer {
 	Default,
-	#[allow(dead_code)]
 	ChangedOnly,
 }
 
 impl Writer {
 	fn write<P: AsRef<Path>>(&self, path: P, contents: &str) -> Result<bool> {
-		if matches!(self, Self::ChangedOnly) {
-			let existing = fs::read_to_string(&path)?;
-
-			if existing.eq(contents) {
-				return Ok(false);
-			}
+		if matches!(self, Self::ChangedOnly)
+			&& matches!(fs::read_to_string(&path), Ok(existing) if existing.eq(contents))
+		{
+			return Ok(false);
 		}
 
 		fs::write(&path, contents)?;
@@ -62,11 +61,11 @@ impl Writer {
 		let has_playgrounds = chapter.has_playgrounds();
 
 		let absolute_project_folder = root.join(&project_folder);
+		let mut made_changes_to_scripts = false;
 
-		if absolute_project_folder.exists() {
-			if let Self::Default = self {
-				fs::remove_dir_all(&absolute_project_folder)?;
-			}
+		if matches!(self, Self::Default) && absolute_project_folder.exists() {
+			fs::remove_dir_all(&absolute_project_folder)?;
+			made_changes_to_scripts = true;
 		}
 
 		fs::create_dir_all(&absolute_project_folder)?;
@@ -89,10 +88,14 @@ impl Writer {
 		let chapter_path = chapter.source_path().to_owned();
 
 		for (code_block_index, code_block) in chapter.into_iter().enumerate() {
-			self.write(
+			let changed_script = self.write(
 				absolute_project_folder.join(&format!("codeblock_{code_block_index}.ts")),
 				&code_block.code_to_run,
 			)?;
+
+			if changed_script && !made_changes_to_scripts {
+				made_changes_to_scripts = changed_script;
+			}
 
 			main_script.push(format!(
 				"\
@@ -114,6 +117,7 @@ impl Writer {
 			project_folder,
 			script_basename,
 			script_marker,
+			made_changes_to_scripts,
 		})
 	}
 }
@@ -455,7 +459,197 @@ fn ng_build(root: &Path, project_name: &str) -> Result<()> {
 	}
 }
 
-pub(crate) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
+#[cfg(all(unix, feature = "background"))]
+#[allow(clippy::too_many_lines)]
+fn build_in_background(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
+	use super::background;
+
+	let root = &config.angular_root_folder;
+
+	let mut root_exists = root.exists();
+	if root_exists && !background::is_running(config)? {
+		root_exists = false;
+		fs::remove_dir_all(root)?;
+	}
+
+	let chapter_count_file = root.join(".number-of-files");
+	let new_chapter_count = chapters.len();
+	let mut is_running = false;
+	if root_exists {
+		let running_chapter_count = fs::read_to_string(&chapter_count_file)
+			.ok()
+			.and_then(|s| s.trim().parse::<usize>().ok());
+
+		if matches!(
+			running_chapter_count,
+			Some(count) if count == new_chapter_count
+		) {
+			is_running = background::is_running(config)?;
+		} else {
+			background::stop(config)?;
+			fs::remove_dir_all(root)?;
+
+			is_running = false;
+			root_exists = false;
+		}
+	}
+
+	if !root_exists {
+		let experimental_builder_folder = root.join("node_modules/experimental-builder");
+		fs::create_dir_all(&experimental_builder_folder)?;
+
+		write_tsconfig(&Writer::Default, config)?;
+
+		fs::write(
+			experimental_builder_folder.join("package.json"),
+			EXPERIMENTAL_BUILDER_MANIFEST,
+		)?;
+		fs::write(
+			experimental_builder_folder.join("builder.mjs"),
+			EXPERIMENTAL_BUILDER_IMPLEMENTATION,
+		)?;
+		fs::write(
+			experimental_builder_folder.join("schema.json"),
+			EXPERIMENTAL_BUILDER_SCHEMA,
+		)?;
+
+		let Some(output_path) = diff_paths(&config.target_folder, root) else {
+			return Err(Error::msg("Failed to find relative target folder"));
+		};
+
+		let mut workspace = AngularWorkspace::new();
+
+		workspace.add_project("application", "").add_target(
+			"build",
+			"experimental-builder:application",
+			json!({
+				"optimization": false,
+				"inlineStyleLanguage": &config.inline_style_language,
+				"outputPath": output_path,
+			}),
+		);
+
+		fs::write(
+			root.join("angular.json"),
+			&serde_json::to_string(&workspace)?,
+		)?;
+	}
+
+	let mut replacements = Vec::with_capacity(chapters.len());
+
+	for (index, chapter) in chapters.into_iter().enumerate() {
+		replacements.push(Writer::ChangedOnly.write_chapter(root, index, chapter)?);
+	}
+
+	if is_running {
+		if !replacements
+			.iter()
+			.any(|replacement| replacement.made_changes_to_scripts)
+		{
+			// change one watched file to trigger a new build, as the HTML renderer
+			// has just wiped the target folder
+			write_tsconfig(&Writer::Default, config)?;
+		}
+	} else {
+		background::start(config)?;
+		fs::write(chapter_count_file, format!("{new_chapter_count}\n"))?;
+	}
+
+	let scripts: HashMap<_, _> = replacements
+		.iter()
+		.map(|replacement| {
+			(
+				replacement.script_basename.clone(),
+				format!("{}.js", &replacement.script_basename),
+			)
+		})
+		.collect();
+
+	let mut has_playgrounds = false;
+	let mut marker_to_script_map = HashMap::new();
+
+	for replacement in replacements {
+		let mut chapter_path = config.target_folder.join(&replacement.chapter_path);
+		chapter_path.set_extension("html");
+
+		let chapter = fs::read_to_string(&chapter_path)?;
+		let path_to_root = path_to_root(&replacement.chapter_path);
+
+		let Some(main_filename) = scripts.get(&replacement.script_basename) else {
+				return Err(Error::msg(
+					format!("Failed to find angular application for chapter {:?}", &replacement.chapter_path)
+				));
+			};
+
+		let app_script_src = format!(r#"src="{path_to_root}/{main_filename}""#);
+
+		let mut chapter = chapter.replace(&replacement.script_marker, &app_script_src);
+		marker_to_script_map.insert(
+			replacement.script_marker,
+			(main_filename, replacement.has_playgrounds),
+		);
+
+		if replacement.has_playgrounds {
+			chapter.push_str(&format!(
+				r#"<script type="module" src="{path_to_root}/playground-io.min.js"></script>"#
+			));
+			has_playgrounds = true;
+		}
+
+		fs::write(&chapter_path, &chapter)?;
+	}
+
+	let index_path = config.target_folder.join("index.html");
+	if let Ok(index) = fs::read_to_string(&index_path) {
+		for (marker, (main_filename, has_playgrounds)) in marker_to_script_map {
+			if !index.contains(&marker) {
+				continue;
+			}
+
+			let app_script_src = format!(r#"src="{main_filename}""#);
+
+			let mut index = index.replace(&marker, &app_script_src);
+
+			if has_playgrounds {
+				index.push_str(r#"<script type="module" src="playground-io.min.js"></script>"#);
+			}
+
+			fs::write(index_path, index)?;
+
+			break;
+		}
+	}
+
+	if has_playgrounds {
+		fs::write(
+			config.target_folder.join("playground-io.min.js"),
+			crate::js::PLAYGROUND_SCRIPT,
+		)?;
+	}
+
+	Ok(())
+}
+
+#[allow(clippy::same_functions_in_if_condition)]
+pub(crate) fn build(
+	ctx: &RenderContext,
+	config: &Config,
+	chapters: Vec<ChapterWithCodeBlocks>,
+) -> Result<()> {
+	if config.background {
+		if !cfg!(unix) {
+			log::warn!("The background option is not supported on windows");
+		} else if !cfg!(feature = "background") {
+			log::warn!("This build doesn't support the background option");
+		} else if !config.experimental_builder {
+			log::warn!("The background option requires the experimentalBuilder option");
+		} else if ctx.config.get("output.html.live-reload-endpoint").is_none() {
+			log::warn!("The background option is ignored for commands that don't watch");
+		} else {
+			return build_in_background(config, chapters);
+		}
+	}
+
 	if config.experimental_builder {
 		build_experimental(config, &Writer::Default, chapters)
 	} else {

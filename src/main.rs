@@ -15,6 +15,7 @@ use std::{
 use angular::build;
 use anyhow::Result;
 use config::Config;
+use log::warn;
 use markdown::process_markdown;
 use mdbook::{
 	renderer::{HtmlHandlebars, RenderContext},
@@ -24,6 +25,37 @@ use mdbook::{
 fn main() -> Result<()> {
 	init_logger();
 
+	let mut args = env::args();
+	let _ = args.next();
+
+	if let Some(arg) = args.next() {
+		if arg == "stop" {
+			return stop_background_process();
+		}
+
+		warn!("Unexpected command {arg}");
+	}
+
+	render()
+}
+
+#[cfg(all(unix, feature = "background"))]
+fn stop_background_process() -> Result<()> {
+	use angular::stop_background_process;
+
+	let config = Config::read(env::current_dir()?)?;
+
+	stop_background_process(&config)
+}
+
+#[cfg(not(all(unix, feature = "background")))]
+fn stop_background_process() -> Result<()> {
+	use anyhow::Error;
+
+	Err(Error::msg("Stop command is not supported"));
+}
+
+fn render() -> Result<()> {
 	let mut ctx = RenderContext::from_json(io::stdin())?;
 	let config = Config::new(&ctx);
 
@@ -58,7 +90,7 @@ fn main() -> Result<()> {
 	log::debug!("Finished rendering");
 
 	if !chapters_with_codeblocks.is_empty() {
-		build(&config, chapters_with_codeblocks)?;
+		build(&ctx, &config, chapters_with_codeblocks)?;
 	}
 
 	log::debug!("Finished");

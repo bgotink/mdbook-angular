@@ -16,6 +16,9 @@
 		},
 		"optimization": {
 			"type": "boolean"
+		},
+		"watch": {
+			"type": "boolean"
 		}
 	},
 	"required": ["outputPath"],

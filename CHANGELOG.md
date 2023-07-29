@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Add experimental background option for \*nix platforms
+
 ## v0.0.3
 
 - Publish built binaries on GitHub
