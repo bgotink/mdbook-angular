@@ -7,5 +7,5 @@ title = "Test Angular Book"
 
 [output.angular]
 command = "../target/debug/mdbook-angular"
-experimentalBuilder = true
+experimental-builder = true
 background = true

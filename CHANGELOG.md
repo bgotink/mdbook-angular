@@ -5,6 +5,7 @@
 <!-- add new items here -->
 
 - Add experimental background option for \*nix platforms
+- Replace camelCase options with kebab-case in `book.toml`
 
 ## v0.0.3
 

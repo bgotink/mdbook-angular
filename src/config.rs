@@ -38,7 +38,7 @@ impl Config {
 
 	fn from_config(config: &mdbook::Config, root: &Path, destination: PathBuf) -> Self {
 		let experimental_builder = config
-			.get("output.angular.experimentalBuilder")
+			.get("output.angular.experimental-builder")
 			.and_then(Value::as_bool)
 			.unwrap_or(true);
 
@@ -58,7 +58,7 @@ impl Config {
 			.map(|tsconfig| root.join(tsconfig));
 
 		let inline_style_language = config
-			.get("output.angular.inlineStyleLanguage")
+			.get("output.angular.inline-style-language")
 			.and_then(Value::as_str)
 			.unwrap_or("css")
 			.to_owned();
