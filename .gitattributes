@@ -1,0 +1,10 @@
+# This line does two things:
+# - enable git's CRLF -> LF modification
+# - tell git to guess whether files are text or binary
+*                      text=auto
+
+# Set the language for these files to json5 to ensure GitHub doesn't show the comments as errors
+/.vscode/*.json        linguist-language=JSON5
+
+/src/js/**/*.min.js    linguist-generated -diff -merge
+/src/js/**/*.min.mjs   linguist-generated -diff -merge
