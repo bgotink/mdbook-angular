@@ -6,5 +6,8 @@
 # Set the language for these files to json5 to ensure GitHub doesn't show the comments as errors
 /.vscode/*.json        linguist-language=JSON5
 
+# Minified files are generated, diff or merge is not useful here
 /src/js/**/*.min.js    linguist-generated -diff -merge
 /src/js/**/*.min.mjs   linguist-generated -diff -merge
+# Not really documentation, but there is no better linguist attribute
+/test-book/**/*        linguist-documentation
