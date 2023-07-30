@@ -75,7 +75,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 	let mut replacements = Vec::with_capacity(chapters.len());
 
 	for (index, chapter) in chapters.into_iter().enumerate() {
-		replacements.push(writer.write_chapter(root, index, chapter)?);
+		replacements.push(writer.write_chapter(config, root, index, chapter)?);
 	}
 
 	if is_running {

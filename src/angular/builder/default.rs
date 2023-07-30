@@ -46,7 +46,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 	for (index, chapter) in chapters.into_iter().enumerate() {
 		let project_name = format!("code_{index}");
 
-		let replacement = writer.write_chapter(root, index, chapter)?;
+		let replacement = writer.write_chapter(config, root, index, chapter)?;
 
 		writer.write(
 			root.join(&replacement.project_folder).join("tsconfig.json"),

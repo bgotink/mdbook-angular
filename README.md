@@ -202,6 +202,12 @@ inline-style-language = "css"
 
 # Whether to create an optimized angular build or not
 optimize = false
+
+# Which polyfills to load, if zone.js is not in the list then it will be loaded
+# as first polyfill
+# This is a list of strings, all of which must be bare identifiers. Relative
+# imports won't work.
+polyfills = []
 ```
 
 None of these settings are required, the default values are shown in the code above.

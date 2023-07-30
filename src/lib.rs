@@ -73,7 +73,7 @@ impl AngularRenderer {
 	pub fn render_mut(&self, ctx: &mut RenderContext) -> Result<()> {
 		validate_version(ctx)?;
 
-		let config = Config::new(ctx);
+		let config = Config::new(ctx)?;
 
 		let mut chapters_with_codeblocks = Vec::new();
 		let mut result: Result<()> = Ok(());

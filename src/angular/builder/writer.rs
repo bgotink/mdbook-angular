@@ -36,6 +36,7 @@ impl Writer {
 
 	pub(super) fn write_chapter<P: AsRef<Path>>(
 		&self,
+		config: &Config,
 		root: P,
 		index: usize,
 		chapter: ChapterWithCodeBlocks,
@@ -55,11 +56,19 @@ impl Writer {
 
 		fs::create_dir_all(&absolute_project_folder)?;
 
-		let mut main_script = Vec::with_capacity(1 + chapter.number_of_code_blocks());
+		let mut main_script =
+			Vec::with_capacity(2 + config.polyfills.len() + chapter.number_of_code_blocks());
+
+		if !config.polyfills.contains(&"zone.js".to_owned()) {
+			main_script.push("import 'zone.js';\n".to_owned());
+		}
+
+		for polyfill in &config.polyfills {
+			main_script.push(format!("import '{polyfill}';\n"));
+		}
 
 		main_script.push(
 			"\
-				import 'zone.js';\n\
 				import {NgZone, type ApplicationRef} from '@angular/core';\n\
 				import {bootstrapApplication} from '@angular/platform-browser';\n\
 				const zone = new NgZone({});\n\
