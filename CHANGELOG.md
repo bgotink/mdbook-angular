@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.1.3
+
 - Ensure build succeeds without "background" feature
 
 ## v0.1.2
