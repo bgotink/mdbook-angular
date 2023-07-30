@@ -69,8 +69,8 @@ customElements.define(
 
 			this.append(input);
 
-			const name = attr(self, 'name');
-			const index = +attr(self, 'index');
+			const name = attr(this, 'name');
+			const index = +attr(this, 'index');
 
 			function update() {
 				let app =
@@ -121,8 +121,8 @@ customElements.define(
 				this.firstChild.remove();
 			}
 
-			const name = attr(self, 'name');
-			const index = +attr(self, 'index');
+			const name = attr(this, 'name');
+			const index = +attr(this, 'index');
 
 			const button = create('button');
 			const code = create('code');
