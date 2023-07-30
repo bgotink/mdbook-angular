@@ -4,6 +4,11 @@
 
 <!-- add new items here -->
 
+## v0.1.1
+
+- Add `polyfills` option to `book.toml` to configure polyfills
+- Fix playground script referring to `this` as `self`
+
 ## v0.1.0
 
 - Add experimental background option for \*nix platforms
