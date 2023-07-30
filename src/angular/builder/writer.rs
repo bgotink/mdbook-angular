@@ -5,7 +5,7 @@ use std::{
 
 use serde_json::json;
 
-use crate::{ChapterWithCodeBlocks, Config, Result};
+use crate::{ChapterWithCodeBlocks, Config, Context, Result};
 
 pub(super) struct PostBuildReplacement {
 	pub(super) chapter_path: PathBuf,
@@ -13,11 +13,13 @@ pub(super) struct PostBuildReplacement {
 	pub(super) project_folder: String,
 	pub(super) script_basename: String,
 	pub(super) script_marker: String,
+	#[cfg_attr(not(all(unix, feature = "background")), allow(dead_code))]
 	pub(super) made_changes_to_scripts: bool,
 }
 
 pub(super) enum Writer {
 	Default,
+	#[cfg_attr(not(all(unix, feature = "background")), allow(dead_code))]
 	ChangedOnly,
 }
 
@@ -50,11 +52,12 @@ impl Writer {
 		let mut made_changes_to_scripts = false;
 
 		if matches!(self, Self::Default) && absolute_project_folder.exists() {
-			fs::remove_dir_all(&absolute_project_folder)?;
+			fs::remove_dir_all(&absolute_project_folder)
+				.context("failed to clear project folder")?;
 			made_changes_to_scripts = true;
 		}
 
-		fs::create_dir_all(&absolute_project_folder)?;
+		fs::create_dir_all(&absolute_project_folder).context("failed to create project folder")?;
 
 		let mut main_script =
 			Vec::with_capacity(2 + config.polyfills.len() + chapter.number_of_code_blocks());
@@ -82,10 +85,12 @@ impl Writer {
 		let chapter_path = chapter.source_path().to_owned();
 
 		for (code_block_index, code_block) in chapter.into_iter().enumerate() {
-			let changed_script = self.write(
-				absolute_project_folder.join(&format!("codeblock_{code_block_index}.ts")),
-				&code_block.code_to_run,
-			)?;
+			let changed_script = self
+				.write(
+					absolute_project_folder.join(&format!("codeblock_{code_block_index}.ts")),
+					&code_block.code_to_run,
+				)
+				.context("failed to write code block")?;
 
 			if changed_script && !made_changes_to_scripts {
 				made_changes_to_scripts = changed_script;
@@ -103,7 +108,8 @@ impl Writer {
 		let script_basename = project_folder.clone();
 
 		let angular_main = format!("{}/{}.ts", &project_folder, &script_basename);
-		self.write(root.join(angular_main), &main_script.join("\n"))?;
+		self.write(root.join(angular_main), &main_script.join("\n"))
+			.context("failed to write main chapter import")?;
 
 		Ok(PostBuildReplacement {
 			chapter_path,
@@ -137,7 +143,8 @@ impl Writer {
 		self.write(
 			config.angular_root_folder.join("tsconfig.json"),
 			&serde_json::to_string(&tsconfig)?,
-		)?;
+		)
+		.context("failed to write tsconfig.json")?;
 
 		Ok(())
 	}

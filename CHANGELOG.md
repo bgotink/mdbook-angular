@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Ensure build succeeds without "background" feature
+
 ## v0.1.2
 
 This release is purely to fix the workflows that generate the pre-built binarires
