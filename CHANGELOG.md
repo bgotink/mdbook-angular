@@ -4,6 +4,10 @@
 
 <!-- add new items here -->
 
+## v0.1.2
+
+This release is purely to fix the workflows that generate the pre-built binarires
+
 ## v0.1.1
 
 - Add `polyfills` option to `book.toml` to configure polyfills
