@@ -22,6 +22,20 @@ then
         rustup component add llvm-tools-preview --toolchain=$TOOLCHAIN
         rustup component add rust-std-$TARGET --toolchain=$TOOLCHAIN
     fi
+
+    case "$TARGET" in
+        aarch64-unknown-linux-musl)
+            MUSL_DOWNLOAD=https://musl.cc/aarch64-linux-musl-cross.tgz
+            ;;
+        x86_64-unknown-linux-musl)
+            MUSL_DOWNLOAD=https://musl.cc/x86_64-linux-musl-native.tgz
+            ;;
+    esac
+
+    if [ -n "$MUSL_DOWNLOAD" ]
+    then
+        curl -SsL "$MUSL_DOWNLOAD" | sudo tar xvzC /usr/local
+    fi
 fi
 
 rustup default $TOOLCHAIN
