@@ -29,6 +29,7 @@ then
             ;;
         x86_64-unknown-linux-musl)
             MUSL_DOWNLOAD=https://musl.cc/x86_64-linux-musl-cross.tgz
+            sudo ln -s /usr/local/bin/{x86_64-linux-,}musl-gcc
             ;;
     esac
 
