@@ -1,4 +1,17 @@
 #![doc = include_str!("../README.md")]
+#![warn(clippy::cargo, clippy::pedantic)]
+#![warn(
+	clippy::exit,
+	clippy::expect_used,
+	clippy::panic,
+	clippy::semicolon_inside_block,
+	clippy::str_to_string,
+	clippy::string_to_string,
+	clippy::unnecessary_self_imports,
+	clippy::use_debug
+)]
+#![deny(clippy::print_stderr, clippy::print_stdout)]
+#![allow(clippy::must_use_candidate)]
 
 mod angular;
 pub(crate) mod codeblock;
