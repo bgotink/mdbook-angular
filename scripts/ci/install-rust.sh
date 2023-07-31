@@ -34,7 +34,7 @@ then
 
     if [ -n "$MUSL_DOWNLOAD" ]
     then
-        curl -SsL "$MUSL_DOWNLOAD" | sudo tar xvzC /usr/local
+        curl -SsL "$MUSL_DOWNLOAD" | sudo tar -xvzC /usr/local --strip-components 1
     fi
 fi
 
