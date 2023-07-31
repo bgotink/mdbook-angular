@@ -1,9 +1,25 @@
 use std::path::{Path, PathBuf};
 
 use mdbook::renderer::RenderContext;
-use toml::Value;
+use serde::Deserialize;
+use toml::{Table, Value};
 
-use crate::{Error, Result};
+use crate::Result;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+struct DeConfig {
+	#[allow(unused)] // the command option is defined by mdbook
+	command: Option<String>,
+
+	background: Option<bool>,
+	experimental_builder: Option<bool>,
+	playgrounds: Option<bool>,
+	tsconfig: Option<PathBuf>,
+	inline_style_language: Option<String>,
+	optimize: Option<bool>,
+	polyfills: Option<Vec<String>>,
+}
 
 /// Configuration for mdbook-angular
 #[allow(clippy::struct_excessive_bools)] // this is config, not a state machine
@@ -91,51 +107,10 @@ impl Config {
 	}
 
 	fn from_config(config: &mdbook::Config, root: &Path, destination: PathBuf) -> Result<Self> {
-		let experimental_builder = config
-			.get("output.angular.experimental-builder")
-			.and_then(Value::as_bool)
-			.unwrap_or(true);
-
-		let background = config
-			.get("output.angular.background")
-			.and_then(Value::as_bool)
-			.unwrap_or(false);
-
-		let playgrounds = config
-			.get("output.angular.playgrounds")
-			.and_then(Value::as_bool)
-			.unwrap_or(true);
-
-		let tsconfig = config
-			.get("output.angular.tsconfig")
-			.and_then(Value::as_str)
-			.map(|tsconfig| root.join(tsconfig));
-
-		let inline_style_language = config
-			.get("output.angular.inline-style-language")
-			.and_then(Value::as_str)
-			.unwrap_or("css")
-			.to_owned();
-
-		let optimize = config
-			.get("output.angular.optimize")
-			.and_then(Value::as_bool)
-			.unwrap_or(false);
-
-		let polyfills = config
-			.get("output.angular.polyfills")
-			.and_then(Value::as_array)
-			.map(|polyfills| {
-				polyfills
-					.iter()
-					.map(|value| value.as_str().map(ToOwned::to_owned))
-					.collect::<Option<Vec<_>>>()
-					.ok_or(Error::msg(
-						"Invalid polyfills, expected an array of strings",
-					))
-			})
-			.transpose()?
-			.unwrap_or_default();
+		let de_config: DeConfig = config
+			.get_renderer("angular")
+			.map_or_else(Table::default, ToOwned::to_owned)
+			.try_into()?;
 
 		let book_source_folder = root.join(&config.book.src);
 
@@ -149,13 +124,13 @@ impl Config {
 		let target_folder = destination;
 
 		Ok(Config {
-			background,
-			experimental_builder,
-			playgrounds,
-			tsconfig,
-			inline_style_language,
-			optimize,
-			polyfills,
+			experimental_builder: de_config.experimental_builder.unwrap_or(true),
+			background: de_config.background.unwrap_or(false),
+			playgrounds: de_config.playgrounds.unwrap_or(true),
+			tsconfig: de_config.tsconfig.map(|tsconfig| root.join(tsconfig)),
+			inline_style_language: de_config.inline_style_language.unwrap_or("css".to_owned()),
+			optimize: de_config.optimize.unwrap_or(false),
+			polyfills: de_config.polyfills.unwrap_or_default(),
 
 			book_source_folder,
 			angular_root_folder,

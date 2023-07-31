@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Fail when invalid configuration is passed
+
 ## v0.1.3
 
 - Ensure build succeeds without "background" feature
