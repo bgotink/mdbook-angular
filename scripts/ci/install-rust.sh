@@ -28,7 +28,7 @@ then
             MUSL_DOWNLOAD=https://musl.cc/aarch64-linux-musl-cross.tgz
             ;;
         x86_64-unknown-linux-musl)
-            MUSL_DOWNLOAD=https://musl.cc/x86_64-linux-musl-native.tgz
+            MUSL_DOWNLOAD=https://musl.cc/x86_64-linux-musl-cross.tgz
             ;;
     esac
 
