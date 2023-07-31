@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.1.4
+
 - Fail when invalid configuration is passed
 
 ## v0.1.3
