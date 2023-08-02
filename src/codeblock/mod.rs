@@ -27,15 +27,20 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 	code: C,
 	code_to_print: &Option<C>,
 ) -> Result<CodeBlock> {
-	let language = language.as_ref().to_owned();
 	let code = code.as_ref();
-
-	let flags = get_flags(&language);
+	let flags = get_flags(language.as_ref());
 
 	let hidden = flags.contains(&flags::CodeBlockFlags::Hide);
-	let collapsed = flags.contains(&flags::CodeBlockFlags::Collapsed);
 
 	let insert = !flags.contains(&flags::CodeBlockFlags::NoInsert);
+
+	let collapsed = if flags.contains(&flags::CodeBlockFlags::Collapsed) {
+		true
+	} else if flags.contains(&flags::CodeBlockFlags::Uncollapsed) {
+		false
+	} else {
+		config.collapsed
+	};
 
 	let allow_playground = if flags.contains(&flags::CodeBlockFlags::NoPlayground) {
 		false

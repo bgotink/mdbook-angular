@@ -4,6 +4,9 @@
 
 <!-- add new items here -->
 
+- Add `collapsed` option in `book.toml` to collapse code blocks by default
+- Add `uncollapsed` flag for code blocks to overrule the `collapsed` option
+
 ## v0.1.4
 
 - Fail when invalid configuration is passed

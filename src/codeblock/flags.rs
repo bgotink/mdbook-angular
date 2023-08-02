@@ -4,6 +4,8 @@ pub(super) enum CodeBlockFlags {
 	Hide,
 	/// Show the source code collapsed
 	Collapsed,
+	/// Show the source code uncollapsed
+	Uncollapsed,
 
 	/// Show a playground even if configuration disables them
 	Playground,
@@ -19,6 +21,7 @@ fn to_flag(value: &str) -> Option<CodeBlockFlags> {
 		"hide" => Some(CodeBlockFlags::Hide),
 		"playground" => Some(CodeBlockFlags::Playground),
 		"noplayground" | "no-playground" => Some(CodeBlockFlags::NoPlayground),
+		"uncollapsed" | "no-collapse" => Some(CodeBlockFlags::Uncollapsed),
 		"collapsed" | "collapse" => Some(CodeBlockFlags::Collapsed),
 		"no-insert" => Some(CodeBlockFlags::NoInsert),
 		_ => None,

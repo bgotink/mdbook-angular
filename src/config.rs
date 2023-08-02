@@ -14,6 +14,7 @@ struct DeConfig {
 
 	background: Option<bool>,
 	experimental_builder: Option<bool>,
+	collapsed: Option<bool>,
 	playgrounds: Option<bool>,
 	tsconfig: Option<PathBuf>,
 	inline_style_language: Option<String>,
@@ -46,6 +47,16 @@ pub struct Config {
 	///
 	/// Default value: `false`
 	pub experimental_builder: bool,
+	/// Whether code blocks should be collapsed by default
+	///
+	/// This can be overridden via `collapsed` or `uncollapsed` tag on every
+	/// individual code block or `{{#angular}}` tag
+	///
+	/// Note this only takes effect on code blocks tagged with "angular", it
+	/// doesn't affect other code blocks.
+	///
+	/// Default value: `false`
+	pub collapsed: bool,
 	/// Whether playgrounds are enabled by default
 	///
 	/// This can be overridden via `playground` or `no-playground` tag on every
@@ -126,6 +137,7 @@ impl Config {
 		Ok(Config {
 			experimental_builder: de_config.experimental_builder.unwrap_or(true),
 			background: de_config.background.unwrap_or(false),
+			collapsed: de_config.collapsed.unwrap_or(false),
 			playgrounds: de_config.playgrounds.unwrap_or(true),
 			tsconfig: de_config.tsconfig.map(|tsconfig| root.join(tsconfig)),
 			inline_style_language: de_config.inline_style_language.unwrap_or("css".to_owned()),

@@ -154,7 +154,7 @@ The following flags can be passed on every angular code block:
 
 - `hide`: Don't show the code, but do include the running angular application and possibly the playground
 - `playground` / `no-playground`: Show or don't show a playground for the current application, regardless of whether the configuration allows playgrounds. The `playground` flag won't show a playground if the component doesn't warrant a playground.
-- `collapsed`: Place the code inside a `<details>` element, hiding it until the user clicks to uncollapse the element.
+- `collapsed` / `uncollapsed`: Hide or don't hide the source code (i.e. the code block itself) in a collapsed element that can be opened via click.
 - `no-insert`: Do not automatically insert the live application on the page. This allows you to write the element linked to the angular component once (and no more than once) on the page at a location of your choosing.
 
 ### Configuration
@@ -184,6 +184,14 @@ experimental-builder = true
 # having the Angular build watch instead of triggering a new build every time.
 # This option requires `experimental-builder`
 background = true
+
+# Whether code blocks should be collapsed by default
+#
+# This can be overridden per code block by adding either the collapsed or
+# uncollapsed flag.
+# Note this only takes effect on code blocks tagged with "angular", it doesn't
+# affect other code blocks.
+collapsed = false
 
 # Whether to allow playgrounds, i.e. to add inputs and actions to the page
 # allowing your readers to interact with the running code blocks.
