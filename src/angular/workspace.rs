@@ -6,8 +6,14 @@ use serde_json::Value;
 use crate::Result;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+struct AngularWorkspaceCliSettings {
+	analytics: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub(super) struct AngularWorkspace {
 	version: i32,
+	cli: AngularWorkspaceCliSettings,
 	projects: HashMap<String, AngularWorkspaceProject>,
 }
 
@@ -15,6 +21,7 @@ impl AngularWorkspace {
 	pub(super) fn new() -> Self {
 		AngularWorkspace {
 			version: 1,
+			cli: AngularWorkspaceCliSettings { analytics: false },
 			projects: HashMap::new(),
 		}
 	}
