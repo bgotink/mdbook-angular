@@ -228,7 +228,7 @@ fn print_playground(index: usize, code_block: &CodeBlock) -> String {
 	let mut result = Vec::new();
 
 	if code_block.insert {
-		result.push(format!("<{0}></{0}>", code_block.tag));
+		result.push(format!("<{0}></{0}>\n", code_block.tag));
 	}
 
 	if let Some(playground) = &code_block.playground {
