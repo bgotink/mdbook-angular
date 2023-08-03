@@ -47,7 +47,7 @@ impl<'a> CodeBlockCollector<'a> {
 	fn process_event<'b>(&mut self, event: Event<'b>) -> ProcessedEvent<'b> {
 		static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
 			Regex::new(
-				r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>(?:\s+(?:hide|no-playground|playground|collapsed)?)*)\}\}"#,
+				r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>\s+.*?)?\}\}"#,
 			)
 			.unwrap()
 		});
@@ -125,7 +125,14 @@ impl<'a> CodeBlockCollector<'a> {
 			};
 
 			let mut flags = vec!["ts", "angular"];
-			flags.append(&mut captures["flags"].split_whitespace().collect::<Vec<&str>>());
+			if let Some(flags_input) = captures.name("flags") {
+				flags.append(
+					&mut flags_input
+						.as_str()
+						.split_whitespace()
+						.collect::<Vec<&str>>(),
+				);
+			}
 
 			let reexport_path = diff_paths(
 				&path,

@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Allow extra flags passed via `{{#angular}}` block, just like in ` ```ts,angular ` code blocks
+
 ## v0.1.5
 
 - Add `collapsed` option in `book.toml` to collapse code blocks by default
