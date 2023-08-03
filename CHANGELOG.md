@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.1.5
+
 - Add `collapsed` option in `book.toml` to collapse code blocks by default
 - Add `uncollapsed` flag for code blocks to overrule the `collapsed` option
 - Ensure the "Inputs:" text is in a separate paragraph from the playground
