@@ -1,0 +1,50 @@
+name: CI
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build: [stable, beta, nightly, macos, windows]
+        include:
+          - build: stable
+            os: ubuntu-latest
+            rust: stable
+          - build: beta
+            os: ubuntu-latest
+            rust: beta
+          - build: nightly
+            os: ubuntu-latest
+            rust: nightly
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: windows
+            os: windows-latest
+            rust: stable
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        run: scripts/ci/install-rust.sh ${{ matrix.rust }}
+      - name: Install mdbook
+        shell: bash
+        run: |
+          cargo install mdbook --no-default-features \
+            --version $(echo '/name = "mdbook"/+' | ed -s Cargo.lock | cut -d= -f2 | tr -d ' "')
+      - name: Build and run tests
+        run: cargo test --locked
+      - name: Test no default
+        run: cargo test --no-default-features
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        run: rustup update stable && rustup default stable && rustup component add rustfmt
+      - run: cargo fmt --check

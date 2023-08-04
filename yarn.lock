@@ -6992,6 +6992,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
+    "@angular/cli": ^16.2.0-next
     esbuild: ^0.18.12
     express-check-in: ^0.1.2
     husky: 8.0.3

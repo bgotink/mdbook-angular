@@ -3,6 +3,8 @@ use std::{
 	process::{Command, Stdio},
 };
 
+use anyhow::Context;
+
 use crate::{Error, Result};
 
 pub(super) const ANGULAR_CLI_CMD: &str = "ng";
@@ -16,7 +18,8 @@ pub(super) fn ng_build(root: &Path, project_name: &str) -> Result<()> {
 		.stdout(Stdio::inherit())
 		.stderr(Stdio::inherit())
 		.stdin(Stdio::null())
-		.status()?;
+		.status()
+		.context("Failed to run ng")?;
 
 	if result.success() {
 		Ok(())

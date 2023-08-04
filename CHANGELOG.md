@@ -5,6 +5,7 @@
 <!-- add new items here -->
 
 - Allow extra flags passed via `{{#angular}}` block, just like in ` ```ts,angular ` code blocks
+- Improve (some) error messages to help debug issues
 
 ## v0.1.5
 

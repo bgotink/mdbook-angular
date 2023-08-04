@@ -6,6 +6,7 @@ use std::{
 	rc::Rc,
 };
 
+use anyhow::Context;
 use mdbook::book::Chapter;
 use once_cell::sync::Lazy;
 use pathdiff::diff_paths;
@@ -402,7 +403,8 @@ pub(crate) fn process_markdown(
 	markdown_to_string(
 		Parser::new(&chapter.content).flat_map(|event| collector.process_event(event)),
 		&mut new_content,
-	)?;
+	)
+	.context("Failed to serialize markdown")?;
 
 	collector.error?;
 

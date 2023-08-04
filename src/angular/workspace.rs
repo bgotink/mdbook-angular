@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fs, path::Path};
 
+use anyhow::Context;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -40,7 +41,11 @@ impl AngularWorkspace {
 	}
 
 	pub(super) fn write(&self, root: &Path) -> Result<()> {
-		fs::write(root.join("angular.json"), serde_json::to_string(self)?)?;
+		fs::write(
+			root.join("angular.json"),
+			serde_json::to_string(self).context("Failed to generate angular.json")?,
+		)
+		.context("Failed to write angular.json")?;
 		Ok(())
 	}
 }

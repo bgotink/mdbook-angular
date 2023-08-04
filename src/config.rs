@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use mdbook::renderer::RenderContext;
 use serde::Deserialize;
-use toml::{Table, Value};
+use toml::Table;
 
 use crate::Result;
 
@@ -20,6 +21,7 @@ struct DeConfig {
 	inline_style_language: Option<String>,
 	optimize: Option<bool>,
 	polyfills: Option<Vec<String>>,
+	workdir: Option<String>,
 }
 
 /// Configuration for mdbook-angular
@@ -97,7 +99,8 @@ impl Config {
 	/// the book contains an invalid configuration.
 	pub fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
 		let root = root.as_ref();
-		let mut cfg = mdbook::Config::from_disk(root.join("book.toml"))?;
+		let mut cfg =
+			mdbook::Config::from_disk(root.join("book.toml")).context("Error reading book.toml")?;
 		cfg.update_from_env();
 
 		Self::from_config(
@@ -121,16 +124,18 @@ impl Config {
 		let de_config: DeConfig = config
 			.get_renderer("angular")
 			.map_or_else(Table::default, ToOwned::to_owned)
-			.try_into()?;
+			.try_into()
+			.context("Failed to parse mdbook-angular configuration")?;
 
 		let book_source_folder = root.join(&config.book.src);
 
-		let angular_root_folder = root.join(
-			config
-				.get("output.angular.workdir")
-				.and_then(Value::as_str)
-				.unwrap_or("mdbook_angular"),
-		);
+		let angular_root_folder =
+			PathBuf::from(de_config.workdir.unwrap_or("mdbook_angular".to_owned()));
+		let angular_root_folder = if angular_root_folder.is_absolute() {
+			angular_root_folder
+		} else {
+			root.join(angular_root_folder)
+		};
 
 		let target_folder = destination;
 

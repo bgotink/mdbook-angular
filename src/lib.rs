@@ -29,11 +29,14 @@ pub const MDBOOK_ANGULAR_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// with this expected version.
 pub const EXPECTED_MDBOOK_VERSION: &str = mdbook::MDBOOK_VERSION;
 
+use std::env;
+
 pub use angular::stop_background_process;
 pub use config::Config;
 
 use angular::build;
 use log::debug;
+use log::warn;
 use markdown::process_markdown;
 use markdown::ChapterWithCodeBlocks;
 use mdbook::{
@@ -87,7 +90,6 @@ impl AngularRenderer {
 		validate_version(ctx)?;
 
 		let config = Config::new(ctx)?;
-
 		let mut chapters_with_codeblocks = Vec::new();
 		let mut result: Result<()> = Ok(());
 
@@ -116,7 +118,15 @@ impl AngularRenderer {
 
 		debug!("Finished rendering");
 
-		if !chapters_with_codeblocks.is_empty() {
+		#[allow(unused_mut)]
+		let mut run_bulid = !chapters_with_codeblocks.is_empty();
+
+		#[cfg(debug_assertions)]
+		if env::var("MDBOOK_ANGULAR_SKIP_BUILD").is_ok() {
+			run_bulid = false;
+		}
+
+		if run_bulid {
 			build(ctx, &config, chapters_with_codeblocks)?;
 		}
 

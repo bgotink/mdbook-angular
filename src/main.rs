@@ -5,7 +5,7 @@ use std::{
 	io::{self, Write},
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use log::{warn, LevelFilter};
 use mdbook::renderer::RenderContext;
 use mdbook_angular::{stop_background_process, AngularRenderer, Config};
@@ -18,7 +18,8 @@ fn main() -> Result<()> {
 
 	if let Some(arg) = args.next() {
 		if arg == "stop" {
-			let config = Config::read(env::current_dir()?)?;
+			let config =
+				Config::read(env::current_dir().context("Cannot access current directory")?)?;
 
 			return stop_background_process(&config);
 		}
