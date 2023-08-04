@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use mdbook::renderer::RenderContext;
 use serde::Deserialize;
-use toml::Table;
 
 use crate::Result;
 
@@ -121,9 +120,10 @@ impl Config {
 	}
 
 	fn from_config(config: &mdbook::Config, root: &Path, destination: PathBuf) -> Result<Self> {
-		let de_config: DeConfig = config
+		let angular_renderer_config = config
 			.get_renderer("angular")
-			.map_or_else(Table::default, ToOwned::to_owned)
+			.map_or_else(Default::default, ToOwned::to_owned);
+		let de_config: DeConfig = toml::Value::from(angular_renderer_config)
 			.try_into()
 			.context("Failed to parse mdbook-angular configuration")?;
 
