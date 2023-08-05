@@ -6,14 +6,38 @@ use serde::Deserialize;
 
 use crate::Result;
 
+#[derive(Deserialize, PartialEq, Eq, Debug, Default, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum Builder {
+	/// Build all chapters in a single angular build.
+	///
+	/// This is fast, but uses internal Angular APIs to use the currently
+	/// experimental "application" builder Angular provides as of 16.2.0.
+	#[default]
+	Experimental,
+	/// Build via [`Builder::Experimental`] in a background process.
+	///
+	/// This allows the angular process to keep running after the renderer exits.
+	/// This builder option enables watching, which significantly speeds up
+	/// rebuilds.
+	///
+	/// This option is not supported on Windows, where this option is considered
+	/// an alias to [`Builder::Experimental`].
+	Background,
+	/// Build every chapter as a separate angular application.
+	///
+	/// This uses stable Angular APIs and should work for Angular 14.0.0 and up.
+	Slow,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct DeConfig {
 	#[allow(unused)] // the command option is defined by mdbook
 	command: Option<String>,
 
-	background: Option<bool>,
-	experimental_builder: Option<bool>,
+	#[serde(default)]
+	builder: Builder,
 	collapsed: Option<bool>,
 	playgrounds: Option<bool>,
 	tsconfig: Option<PathBuf>,
@@ -24,30 +48,11 @@ struct DeConfig {
 }
 
 /// Configuration for mdbook-angular
-#[allow(clippy::struct_excessive_bools)] // this is config, not a state machine
 pub struct Config {
-	/// Whether to enable the experimental background builder
+	/// Builder to use to compile the angular code
 	///
-	/// Enabling this option runs the angular build in a background process,
-	/// triggering a watch instead of an entire new build whenever mdbook notices
-	/// a change.
-	/// This is considerably faster.
-	///
-	/// This option requires the [`Config.experimental_builder`] option to be enabled.
-	/// It only works on builds with the "background" feature enabled, and it only
-	/// works on platforms rustc considers "unix".
-	/// This option is no-op for commands that don't watch the book source for
-	/// changes.
-	///
-	/// Default value: `false`
-	pub background: bool,
-	/// Whether to use an experimental builder (requires angular ≥ 16.2.0)
-	///
-	/// If enabled, all chapters in the book will be built in a single go. If
-	/// disabled, every chapter is built separately as angular application.
-	///
-	/// Default value: `false`
-	pub experimental_builder: bool,
+	/// Default value: [`Builder::Experimental`]
+	pub builder: Builder,
 	/// Whether code blocks should be collapsed by default
 	///
 	/// This can be overridden via `collapsed` or `uncollapsed` tag on every
@@ -140,8 +145,7 @@ impl Config {
 		let target_folder = destination;
 
 		Ok(Config {
-			experimental_builder: de_config.experimental_builder.unwrap_or(true),
-			background: de_config.background.unwrap_or(false),
+			builder: de_config.builder,
 			collapsed: de_config.collapsed.unwrap_or(false),
 			playgrounds: de_config.playgrounds.unwrap_or(true),
 			tsconfig: de_config.tsconfig.map(|tsconfig| root.join(tsconfig)),

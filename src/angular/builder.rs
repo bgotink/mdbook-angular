@@ -8,7 +8,7 @@ mod writer;
 use log::warn;
 use mdbook::renderer::RenderContext;
 
-use crate::{ChapterWithCodeBlocks, Config, Result};
+use crate::{Builder, ChapterWithCodeBlocks, Config, Result};
 
 use utils::ng_build;
 use writer::Writer;
@@ -23,28 +23,27 @@ pub(crate) fn build(
 	config: &Config,
 	chapters: Vec<ChapterWithCodeBlocks>,
 ) -> Result<()> {
-	if config.background {
+	match config.builder {
 		#[cfg(not(unix))]
-		warn!("The background option is not supported on windows");
-
-		#[cfg(not(feature = "background"))]
-		warn!("This build doesn't support the background option");
-
+		Builder::Background => {
+			warn!("The background option is not supported on windows");
+			self::experimental::build(config, chapters)
+		}
+		#[cfg(all(unix, not(feature = "background")))]
+		Builder::Background => {
+			warn!("This build doesn't support the background option");
+			self::experimental::build(config, chapters)
+		}
 		#[cfg(all(unix, feature = "background"))]
-		{
-			if !config.experimental_builder {
-				warn!("The background option requires the experimentalBuilder option");
-			} else if ctx.config.get("output.html.live-reload-endpoint").is_none() {
-				warn!("The background option is ignored for commands that don't watch");
+		Builder::Background => {
+			if ctx.config.get("output.html.live-reload-endpoint").is_some() {
+				self::background::build(config, chapters)
 			} else {
-				return self::background::build(config, chapters);
+				warn!("The background option is ignored for commands that don't watch");
+				self::experimental::build(config, chapters)
 			}
 		}
-	}
-
-	if config.experimental_builder {
-		self::experimental::build(config, chapters)
-	} else {
-		self::default::build(config, chapters)
+		Builder::Experimental => self::experimental::build(config, chapters),
+		Builder::Slow => self::default::build(config, chapters),
 	}
 }

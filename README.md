@@ -175,15 +175,17 @@ command = "/path/to/mdbook-angular"
 # relative to the book.toml file
 workdir = "mdbook_angular"
 
-# Enable an experimental builder that builds the entire book in a
-# single angular build (requires angular ≥ 16.2.0), instead of building
-# every chapter separately.
-experimental-builder = true
-
-# Run the angular build in a background process to speed up rebuilds by
-# having the Angular build watch instead of triggering a new build every time.
-# This option requires `experimental-builder`
-background = true
+# Which builder to use
+#
+# There are three to choose from:
+# - "experimental" (default) requires at least `@angular-devkit/build-angular`
+#   version 16.2.0. This builder builds the code for all chapters in a single go.
+# - "slow" works on angular ≥ 14.0.0, but it is a lot slower as it builds every
+#   chapter as a separate angular application
+# - "background" (not available on Windows) runs the "experimental" builder in a
+#   background process, which allows it to watch and rebuild instead of running
+#   an entire new build every time a change is made.
+builder = "experimental"
 
 # Whether code blocks should be collapsed by default
 #

@@ -32,7 +32,7 @@ pub const EXPECTED_MDBOOK_VERSION: &str = mdbook::MDBOOK_VERSION;
 use std::env;
 
 pub use angular::stop_background_process;
-pub use config::Config;
+pub use config::{Builder, Config};
 
 use angular::build;
 use log::debug;
