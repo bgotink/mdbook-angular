@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.2.0
+
 - Allow extra flags passed via `{{#angular}}` block, just like in ` ```ts,angular ` code blocks
 - Improve (some) error messages to help debug issues
 - Replace multiple builder flags with single builder enum
