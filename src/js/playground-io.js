@@ -28,7 +28,7 @@ customElements.define(
 						const option = create('option');
 						option.value = value;
 						option.innerText = value;
-						option.checked = value === config.default;
+						option.selected = value === config.default;
 						return option;
 					}),
 				);

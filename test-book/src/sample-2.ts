@@ -11,7 +11,7 @@ export class AnnounceComponent {
 	 * Person to tell it's working
 	 */
 	@Input()
-	name: 'Bram' | 'reader' = 'Bram';
+	name: 'Bram' | 'reader' = 'reader';
 }
 
 @Component({
