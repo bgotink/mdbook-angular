@@ -394,7 +394,7 @@ pub(crate) fn process_markdown(
 	chapter: &mut Chapter,
 ) -> Result<Option<ChapterWithCodeBlocks>> {
 	let Some(source_path) = chapter.source_path.as_ref().map(Clone::clone) else {
-		return Ok(None)
+		return Ok(None);
 	};
 
 	let mut new_content: String = String::with_capacity(chapter.content.len());

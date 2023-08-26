@@ -22,8 +22,8 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 	writer.write_tsconfig(config)?;
 
 	let Some(root_target_folder) = diff_paths(&config.target_folder, root) else {
-			return Err(Error::msg("Failed to find relative target folder"));
-		};
+		return Err(Error::msg("Failed to find relative target folder"));
+	};
 
 	let mut replacements = Vec::with_capacity(chapters.len());
 
@@ -104,17 +104,20 @@ fn run_replacements(
 		let chapter = fs::read_to_string(&chapter_path)?;
 		let path_to_root = path_to_root(&replacement.chapter_path);
 
-		let Some(main_filename) = fs::read_dir(config.target_folder.join(&replacement.project_folder))?
+		let Some(main_filename) =
+			fs::read_dir(config.target_folder.join(&replacement.project_folder))?
 				.filter_map(Result::ok)
 				.find(|entry| {
 					let file_name = entry.file_name();
 					let file_name = file_name.to_string_lossy();
 					file_name.ends_with(".js") && file_name.starts_with("main.")
-				}) else {
-					return Err(Error::msg(
-						format!("Failed to find angular application for chapter {:?}", replacement.chapter_path)
-					));
-				};
+				})
+		else {
+			return Err(Error::msg(format!(
+				"Failed to find angular application for chapter {:?}",
+				replacement.chapter_path
+			)));
+		};
 
 		let main_filename = format!(
 			"{}/{}",

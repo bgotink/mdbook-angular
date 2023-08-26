@@ -75,11 +75,15 @@ impl CodeBlockVisitor {
 		}
 
 		let Some(generated_selector) = self.index.map(|i| format!("codeblock-{i}")) else {
-			return Err(Error::msg(format!("Coudldn't find selector on class {name}")));
+			return Err(Error::msg(format!(
+				"Coudldn't find selector on class {name}"
+			)));
 		};
 
 		let Some(first_prop) = decorator.props.first() else {
-			return Err(Error::msg(format!("Unexpected empty @Component annotation in {name}")));
+			return Err(Error::msg(format!(
+				"Unexpected empty @Component annotation in {name}"
+			)));
 		};
 
 		let span = first_prop.span();
@@ -128,10 +132,14 @@ impl CodeBlockVisitor {
 
 		debug!("found @Component on {name}");
 
-		let Some(component) = component.expr.as_call()
+		let Some(component) = component
+			.expr
+			.as_call()
 			.and_then(|call| call.args.get(0))
 			.and_then(|arg| arg.expr.as_object())
-			else { return Ok(()); };
+		else {
+			return Ok(());
+		};
 
 		if self.tag.is_some() {
 			return Err(Error::msg(format!(
@@ -265,12 +273,10 @@ pub(super) fn parse_codeblock(
 	HANDLER.set(&handler, || visitor.visit_program(&program))?;
 
 	let Some(class_name) = visitor.class_name else {
-		return Err(
-			match class_name {
-				Some(class_name) => Error::msg(format!("Failed to find class {class_name}")),
-				None => Error::msg("Failed to find component class")
-			}
-		);
+		return Err(match class_name {
+			Some(class_name) => Error::msg(format!("Failed to find class {class_name}")),
+			None => Error::msg("Failed to find component class"),
+		});
 	};
 
 	let Some(tag) = visitor.tag else {

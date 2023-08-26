@@ -31,8 +31,8 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 	writer.write_tsconfig(config)?;
 
 	let Some(output_path) = diff_paths(&config.target_folder, root) else {
-			return Err(Error::msg("Failed to find relative target folder"));
-		};
+		return Err(Error::msg("Failed to find relative target folder"));
+	};
 
 	let mut workspace = AngularWorkspace::new();
 
@@ -103,10 +103,11 @@ pub(super) fn run_replacements(
 		let path_to_root = path_to_root(&replacement.chapter_path);
 
 		let Some(main_filename) = scripts.get(&replacement.script_basename) else {
-				    return Err(Error::msg(
-					    format!("Failed to find angular application for chapter {:?}", &replacement.chapter_path)
-				    ));
-			    };
+			return Err(Error::msg(format!(
+				"Failed to find angular application for chapter {:?}",
+				&replacement.chapter_path
+			)));
+		};
 
 		let app_script_src = format!(r#"src="{path_to_root}/{main_filename}""#);
 
