@@ -94,6 +94,11 @@ impl PlaygroundInputConfig {
 			default_: Some(default_),
 		}
 	}
+
+	#[inline]
+	pub(super) fn type_(self) -> PlaygroundInputType {
+		self.type_
+	}
 }
 
 pub(crate) struct PlaygroundInput {

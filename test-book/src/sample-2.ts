@@ -11,7 +11,7 @@ export class AnnounceComponent {
 	 * Person to tell it's working
 	 */
 	@Input()
-	name = 'Bram';
+	name: 'Bram' | 'reader' = 'Bram';
 }
 
 @Component({
@@ -27,12 +27,10 @@ export class ConvinceComponent {
 	@Input()
 	name = 'Bram';
 
-	exclaim = '!';
+	exclaim = '';
 
 	/**
 	 * Number of exclamation points to write!
-	 *
-	 * @input {"type": "number", "default": 1}
 	 */
 	@Input()
 	set numberOfExclamationPoints(value: number) {

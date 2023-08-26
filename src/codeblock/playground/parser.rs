@@ -32,26 +32,41 @@ fn extract_inputs<C: comments::Comments>(
 	let mut result = Vec::new();
 
 	for member in &node.body {
-		let (key, decorators, value) = match member {
+		let (key, decorators, value, type_) = match member {
 			ast::ClassMember::AutoAccessor(ast::AutoAccessor {
 				key: ast::Key::Public(key),
 				decorators,
 				value,
+				type_ann,
 				..
 			})
 			| ast::ClassMember::ClassProp(ast::ClassProp {
 				key,
 				decorators,
 				value,
+				type_ann,
 				..
-			}) => (key, decorators, value),
+			}) => (
+				key,
+				decorators,
+				value,
+				type_ann.as_deref().and_then(type_ann_to_input_type),
+			),
 
 			ast::ClassMember::Method(ast::ClassMethod {
 				kind: ast::MethodKind::Setter,
 				key,
 				function,
 				..
-			}) => (key, &function.decorators, &None),
+			}) => (
+				key,
+				&function.decorators,
+				&None,
+				function
+					.params
+					.get(0)
+					.and_then(|param| extract_type_from_pat(&param.pat)),
+			),
 
 			_ => continue,
 		};
@@ -76,6 +91,10 @@ fn extract_inputs<C: comments::Comments>(
 			}
 		}
 
+		if let Some(type_) = type_ {
+			config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
+		}
+
 		let config = config.extend(
 			value
 				.as_ref()
@@ -91,6 +110,56 @@ fn extract_inputs<C: comments::Comments>(
 	}
 
 	Ok(result)
+}
+
+fn extract_type_from_pat(pat: &ast::Pat) -> Option<PlaygroundInputType> {
+	match pat {
+		ast::Pat::Object(ast::ObjectPat { type_ann, .. })
+		| ast::Pat::Ident(ast::BindingIdent { type_ann, .. })
+		| ast::Pat::Array(ast::ArrayPat { type_ann, .. }) => {
+			type_ann.as_deref().and_then(type_ann_to_input_type)
+		}
+
+		ast::Pat::Assign(ast::AssignPat { left, right, .. }) => extract_type_from_pat(left)
+			.or_else(|| evaluate(right).map(PlaygroundInputConfig::type_)),
+
+		_ => None,
+	}
+}
+
+fn type_ann_to_input_type(type_ann: &ast::TsTypeAnn) -> Option<PlaygroundInputType> {
+	match type_ann.type_ann.as_ref() {
+		ast::TsType::TsKeywordType(ast::TsKeywordType {
+			kind: ast::TsKeywordTypeKind::TsNumberKeyword,
+			..
+		}) => Some(PlaygroundInputType::Number),
+		ast::TsType::TsKeywordType(ast::TsKeywordType {
+			kind: ast::TsKeywordTypeKind::TsStringKeyword,
+			..
+		}) => Some(PlaygroundInputType::String),
+		ast::TsType::TsKeywordType(ast::TsKeywordType {
+			kind: ast::TsKeywordTypeKind::TsBooleanKeyword,
+			..
+		}) => Some(PlaygroundInputType::Boolean),
+
+		ast::TsType::TsUnionOrIntersectionType(ast::TsUnionOrIntersectionType::TsUnionType(
+			ast::TsUnionType { types, .. },
+		)) => {
+			let string_types: Vec<_> = types
+				.iter()
+				.filter_map(|t| t.as_ts_lit_type())
+				.filter_map(|t| t.lit.as_str())
+				.map(|v| v.value.to_string())
+				.collect();
+
+			if string_types.len() == types.len() {
+				Some(PlaygroundInputType::Enum(string_types))
+			} else {
+				None
+			}
+		}
+		_ => None,
+	}
 }
 
 fn extract_actions<C: comments::Comments>(
