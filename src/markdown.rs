@@ -47,10 +47,8 @@ impl<'a> CodeBlockCollector<'a> {
 
 	fn process_event<'b>(&mut self, event: Event<'b>) -> ProcessedEvent<'b> {
 		static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
-			Regex::new(
-				r#"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>\s+.*?)?\}\}"#,
-			)
-			.unwrap()
+			Regex::new(r"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>\s+.*?)?\}\}")
+				.unwrap()
 		});
 
 		if self.error.is_err() {
@@ -339,7 +337,7 @@ impl<'a> ProcessedEvent<'a> {
 	}
 
 	fn concat(self, other: Self) -> Self {
-		Self::Chain(Box::new(self.into_iter().chain(other.into_iter())))
+		Self::Chain(Box::new(self.into_iter().chain(other)))
 	}
 }
 

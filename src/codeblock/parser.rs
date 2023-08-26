@@ -45,7 +45,7 @@ struct CodeBlockVisitor {
 
 impl CodeBlockVisitor {
 	fn get_selector(&mut self, decorator: &ast::ObjectLit, name: &str) -> Result<String> {
-		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\s+"#).unwrap());
+		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s+").unwrap());
 
 		let selector = decorator
 			.props
