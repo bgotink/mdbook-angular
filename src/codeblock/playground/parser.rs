@@ -121,7 +121,7 @@ fn extract_type_from_pat(pat: &ast::Pat) -> Option<PlaygroundInputType> {
 		}
 
 		ast::Pat::Assign(ast::AssignPat { left, right, .. }) => extract_type_from_pat(left)
-			.or_else(|| evaluate(right).map(PlaygroundInputConfig::type_)),
+			.or_else(|| evaluate(right).map(PlaygroundInputConfig::get_type)),
 
 		_ => None,
 	}
@@ -220,6 +220,50 @@ fn evaluate<T: AsRef<ast::Expr>>(expr: T) -> Option<PlaygroundInputConfig> {
 		ast::Expr::Tpl(_) => Some(PlaygroundInputConfig::from_type(
 			PlaygroundInputType::String,
 		)),
+
+		ast::Expr::Unary(ast::UnaryExpr { op, arg, .. }) => match op {
+			ast::UnaryOp::Minus => {
+				if let Some(Value::Number(num)) =
+					evaluate(arg).and_then(PlaygroundInputConfig::get_default)
+				{
+					let val = if let Some(val) = num.as_i64() {
+						Value::Number(Number::from(-val))
+					} else {
+						Value::Number(Number::from_f64(-num.as_f64().unwrap()).unwrap())
+					};
+
+					Some(PlaygroundInputConfig::from_default(val))
+				} else {
+					Some(PlaygroundInputConfig::from_type(
+						PlaygroundInputType::Number,
+					))
+				}
+			}
+
+			ast::UnaryOp::Plus => {
+				let mut cfg = PlaygroundInputConfig::from_type(PlaygroundInputType::Number);
+
+				if let Some(value_cfg) = evaluate(arg) {
+					if let Some(Value::Number(num)) = value_cfg.get_default() {
+						cfg = PlaygroundInputConfig::from_default(Value::Number(num));
+					}
+				}
+
+				Some(cfg)
+			}
+
+			ast::UnaryOp::Bang => Some(PlaygroundInputConfig::from_type(
+				PlaygroundInputType::Boolean,
+			)),
+			ast::UnaryOp::Tilde => Some(PlaygroundInputConfig::from_type(
+				PlaygroundInputType::Number,
+			)),
+			ast::UnaryOp::TypeOf => Some(PlaygroundInputConfig::from_type(
+				PlaygroundInputType::String,
+			)),
+
+			_ => None,
+		},
 
 		ast::Expr::TsAs(ast::TsAsExpr { expr, .. })
 		| ast::Expr::TsNonNull(ast::TsNonNullExpr { expr, .. })

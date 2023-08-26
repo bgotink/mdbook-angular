@@ -12,6 +12,9 @@ export class AnnounceComponent {
 	 */
 	@Input()
 	name: 'Bram' | 'reader' = 'reader';
+
+	@Input()
+	notUsed = -1;
 }
 
 @Component({

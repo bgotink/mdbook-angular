@@ -96,8 +96,13 @@ impl PlaygroundInputConfig {
 	}
 
 	#[inline]
-	pub(super) fn type_(self) -> PlaygroundInputType {
+	pub(super) fn get_type(self) -> PlaygroundInputType {
 		self.type_
+	}
+
+	#[inline]
+	pub(super) fn get_default(self) -> Option<Value> {
+		self.default_
 	}
 }
 
