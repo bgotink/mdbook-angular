@@ -27,13 +27,15 @@ export class ConvinceComponent {
 	@Input()
 	name = 'Bram';
 
+	exclaim = '!';
+
 	/**
 	 * Number of exclamation points to write!
+	 *
+	 * @input {"type": "number", "default": 1}
 	 */
 	@Input()
-	numberOfExclamationPoints = 1;
-
-	get exclaim() {
-		return '!'.repeat(this.numberOfExclamationPoints);
+	set numberOfExclamationPoints(value: number) {
+		this.exclaim = '!'.repeat(value);
 	}
 }

@@ -32,7 +32,8 @@ fn extract_inputs<C: comments::Comments>(
 	let mut result = Vec::new();
 
 	for member in &node.body {
-		let	(ast::ClassMember::AutoAccessor(ast::AutoAccessor {
+		let (key, decorators, value) = match member {
+			ast::ClassMember::AutoAccessor(ast::AutoAccessor {
 				key: ast::Key::Public(key),
 				decorators,
 				value,
@@ -43,7 +44,17 @@ fn extract_inputs<C: comments::Comments>(
 				decorators,
 				value,
 				..
-			})) = member else { continue };
+			}) => (key, decorators, value),
+
+			ast::ClassMember::Method(ast::ClassMethod {
+				kind: ast::MethodKind::Setter,
+				key,
+				function,
+				..
+			}) => (key, &function.decorators, &None),
+
+			_ => continue,
+		};
 
 		if get_decorator(decorators, "Input").is_none() {
 			continue;

@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Support setters with an `@Input()` decorator
+
 ## v0.2.0
 
 - Allow extra flags passed via `{{#angular}}` block, just like in ` ```ts,angular ` code blocks
