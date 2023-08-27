@@ -63,19 +63,21 @@ impl Writer {
 			Vec::with_capacity(2 + config.polyfills.len() + chapter.number_of_code_blocks());
 
 		if !config.polyfills.contains(&"zone.js".to_owned()) {
-			main_script.push("import 'zone.js';\n".to_owned());
+			main_script.push("import 'zone.js';".to_owned());
 		}
 
 		for polyfill in &config.polyfills {
-			main_script.push(format!("import '{polyfill}';\n"));
+			main_script.push(format!("import '{polyfill}';"));
 		}
 
 		main_script.push(
-			"\
-				import {NgZone, type ApplicationRef} from '@angular/core';\n\
+			"\n\
+				import {NgZone, type ApplicationRef, type Provider, type EnvironmentProviders, type Type} from '@angular/core';\n\
 				import {bootstrapApplication} from '@angular/platform-browser';\n\
 				const zone = new NgZone({});\n\
-				const providers = [{provide: NgZone, useValue: zone}];\n\
+				function makeProviders(component: Type<unknown> & {rootProviders?: readonly (Provider | EnvironmentProviders)[] | null | undefined}) {\n\
+					return [{provide: NgZone, useValue: zone}, ...(component.rootProviders ?? [])];\n\
+				}\n\
 				const applications: Promise<ApplicationRef>[] = [];\n\
 				(globalThis as any).mdBookAngular = {zone, applications};\n\
 			"
@@ -99,7 +101,7 @@ impl Writer {
 			main_script.push(format!(
 				"\
 					import {{{} as CodeBlock_{code_block_index}}} from './codeblock_{code_block_index}.js';\n\
-					applications.push(bootstrapApplication(CodeBlock_{code_block_index}, {{providers}}));\n\
+					applications.push(bootstrapApplication(CodeBlock_{code_block_index}, {{providers: makeProviders(CodeBlock_{code_block_index})}}));\n\
 				",
 				&code_block.class_name
 			));

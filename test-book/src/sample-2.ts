@@ -1,4 +1,10 @@
-import {Component, ChangeDetectionStrategy, Input} from '@angular/core';
+import {
+	Component,
+	ChangeDetectionStrategy,
+	Input,
+	ENVIRONMENT_INITIALIZER,
+	Provider,
+} from '@angular/core';
 
 @Component({
 	selector: 'announce-it',
@@ -24,6 +30,16 @@ export class AnnounceComponent {
 	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConvinceComponent {
+	static rootProviders: Provider[] = [
+		{
+			provide: ENVIRONMENT_INITIALIZER,
+			multi: true,
+			useValue: () => {
+				console.log('provided');
+			},
+		},
+	];
+
 	/**
 	 * Person to convince
 	 */
