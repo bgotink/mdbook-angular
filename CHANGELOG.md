@@ -5,6 +5,13 @@
 <!-- add new items here -->
 
 - Support setters with an `@Input()` decorator
+- Decrease the need for explicit `@input` configuration in comment:
+  - Use explicit type on input properties when detecting input type
+  - Parse (some) unary expressions that yield a known type
+  - Map string union types into enumerations
+- Fix default property in enumeration always being set to the first option
+- Fix negative numbers not being detected as default value
+- Make it possible for code blocks to add root-level providers
 
 ## v0.2.0
 
