@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.2.1
+
 - Support setters with an `@Input()` decorator
 - Decrease the need for explicit `@input` configuration in comment:
   - Use explicit type on input properties when detecting input type
