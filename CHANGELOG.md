@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+- Support simple binary expressions in default values, making it possible to e.g. write 10 MiB as `10 * 1024 * 1024` instead of `10485760`
+
 ## v0.2.1
 
 - Support setters with an `@Input()` decorator

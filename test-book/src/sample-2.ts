@@ -21,6 +21,9 @@ export class AnnounceComponent {
 
 	@Input()
 	notUsed = -1;
+
+	@Input()
+	notUsedEither = 10 * 1024 * 1024;
 }
 
 @Component({

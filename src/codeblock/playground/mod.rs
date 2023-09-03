@@ -1,3 +1,4 @@
+mod evaluate_expression;
 mod parser;
 mod types;
 

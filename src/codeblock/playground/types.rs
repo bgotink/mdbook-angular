@@ -37,8 +37,14 @@ pub(crate) struct PlaygroundInputConfig {
 	default_: Option<Value>,
 }
 
-pub(crate) trait PlaygroundInputConfigExt {
+pub(super) trait PlaygroundInputConfigExt {
 	fn extend(self, config: PlaygroundInputConfig) -> PlaygroundInputConfig;
+
+	fn as_boolean(&self) -> Option<bool>;
+	fn into_number(self) -> Option<serde_json::Number>;
+	fn into_string(self) -> Option<String>;
+
+	fn get_default(&self) -> Option<&Value>;
 }
 
 impl PlaygroundInputConfigExt for PlaygroundInputConfig {
@@ -53,6 +59,41 @@ impl PlaygroundInputConfigExt for PlaygroundInputConfig {
 			},
 		}
 	}
+
+	fn as_boolean(&self) -> Option<bool> {
+		if let Some(default_) = &self.default_ {
+			match default_ {
+				Value::Bool(value) => Some(*value),
+				Value::String(value) => Some(!value.is_empty()),
+				Value::Number(value) => Some(value.as_f64().unwrap_or(0.0) != 0.0),
+				Value::Null => Some(false),
+				Value::Array(_) | Value::Object(_) => Some(true),
+			}
+		} else {
+			None
+		}
+	}
+
+	fn into_number(self) -> Option<serde_json::Number> {
+		if let Some(Value::Number(value)) = self.default_ {
+			Some(value)
+		} else {
+			None
+		}
+	}
+
+	fn into_string(self) -> Option<String> {
+		if let Some(Value::String(value)) = self.default_ {
+			Some(value)
+		} else {
+			None
+		}
+	}
+
+	#[inline]
+	fn get_default(&self) -> Option<&Value> {
+		self.default_.as_ref()
+	}
 }
 
 impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
@@ -63,6 +104,26 @@ impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
 		} else {
 			config
 		}
+	}
+
+	#[inline]
+	fn as_boolean(&self) -> Option<bool> {
+		self.as_ref().and_then(PlaygroundInputConfigExt::as_boolean)
+	}
+
+	#[inline]
+	fn into_number(self) -> Option<serde_json::Number> {
+		self.and_then(PlaygroundInputConfigExt::into_number)
+	}
+
+	#[inline]
+	fn into_string(self) -> Option<String> {
+		self.and_then(PlaygroundInputConfigExt::into_string)
+	}
+
+	#[inline]
+	fn get_default(&self) -> Option<&Value> {
+		self.as_ref().and_then(PlaygroundInputConfig::get_default)
 	}
 }
 
@@ -76,6 +137,30 @@ impl PlaygroundInputConfig {
 	}
 
 	#[inline]
+	pub(super) fn boolean() -> PlaygroundInputConfig {
+		PlaygroundInputConfig {
+			type_: PlaygroundInputType::Boolean,
+			default_: None,
+		}
+	}
+
+	#[inline]
+	pub(super) fn number() -> PlaygroundInputConfig {
+		PlaygroundInputConfig {
+			type_: PlaygroundInputType::Number,
+			default_: None,
+		}
+	}
+
+	#[inline]
+	pub(super) fn string() -> PlaygroundInputConfig {
+		PlaygroundInputConfig {
+			type_: PlaygroundInputType::String,
+			default_: None,
+		}
+	}
+
+	#[inline]
 	pub(super) fn from_type(type_: PlaygroundInputType) -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_,
@@ -84,7 +169,9 @@ impl PlaygroundInputConfig {
 	}
 
 	#[inline]
-	pub(super) fn from_default(default_: Value) -> PlaygroundInputConfig {
+	pub(super) fn from_default<T: Into<Value>>(default_: T) -> PlaygroundInputConfig {
+		let default_ = default_.into();
+
 		PlaygroundInputConfig {
 			type_: match &default_ {
 				Value::Bool(_) => PlaygroundInputType::Boolean,
@@ -98,11 +185,6 @@ impl PlaygroundInputConfig {
 	#[inline]
 	pub(super) fn get_type(self) -> PlaygroundInputType {
 		self.type_
-	}
-
-	#[inline]
-	pub(super) fn get_default(self) -> Option<Value> {
-		self.default_
 	}
 }
 
