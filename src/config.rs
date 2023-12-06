@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use mdbook::renderer::RenderContext;
 use serde::Deserialize;
+use toml::value::Table;
 
 use crate::Result;
 
@@ -45,6 +46,8 @@ struct DeConfig {
 	optimize: Option<bool>,
 	polyfills: Option<Vec<String>>,
 	workdir: Option<String>,
+
+	html: Option<Table>,
 }
 
 /// Configuration for mdbook-angular
@@ -88,6 +91,12 @@ pub struct Config {
 	///
 	/// This only supports bare specifiers, you can't add relative imports here.
 	pub polyfills: Vec<String>,
+
+	/// Configuration to pass to the HTML renderer
+	///
+	/// Use this intead of the `output.html` table itself to configure the HTML
+	/// renderer without having mdbook run the HTML renderer standalone.
+	pub html: Option<Table>,
 
 	pub(crate) book_source_folder: PathBuf,
 	pub(crate) angular_root_folder: PathBuf,
@@ -152,6 +161,8 @@ impl Config {
 			inline_style_language: de_config.inline_style_language.unwrap_or("css".to_owned()),
 			optimize: de_config.optimize.unwrap_or(false),
 			polyfills: de_config.polyfills.unwrap_or_default(),
+
+			html: de_config.html,
 
 			book_source_folder,
 			angular_root_folder,

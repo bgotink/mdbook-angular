@@ -114,6 +114,10 @@ impl AngularRenderer {
 
 		debug!("Processed chapters");
 
+		if let Some(html) = &config.html {
+			ctx.config.set("output.html", html)?;
+		}
+
 		HtmlHandlebars::new().render(ctx)?;
 
 		debug!("Finished rendering");
