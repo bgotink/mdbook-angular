@@ -56,10 +56,16 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 
 	ng_build(root, PROJECT_NAME)?;
 
-	let scripts: HashMap<_, _> = fs::read_dir(&config.target_folder)?
+	let scripts: HashMap<_, _> = fs::read_dir(config.target_folder.join("browser"))?
 		.filter_map(Result::ok)
 		.filter_map(|entry| entry.file_name().to_str().map(ToOwned::to_owned))
-		.filter_map(|name| name.find('.').map(|idx| (name[0..idx].to_owned(), name)))
+		.filter_map(|mut name| {
+			let dot_idx = name.find('.')?;
+
+			let basename = name[0..dot_idx].to_owned();
+			name.insert_str(0, "browser/");
+			Some((basename, name))
+		})
 		.collect();
 
 	run_replacements(replacements, config, &scripts)?;

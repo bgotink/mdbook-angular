@@ -97,7 +97,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 		.map(|replacement| {
 			(
 				replacement.script_basename.clone(),
-				format!("{}.js", &replacement.script_basename),
+				format!("browser/{}.js", &replacement.script_basename),
 			)
 		})
 		.collect();
