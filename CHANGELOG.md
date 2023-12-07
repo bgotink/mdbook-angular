@@ -4,6 +4,9 @@
 
 <!-- add new items here -->
 
+## v0.3.0
+
+- Move from Angular 16 to Angular 17. Due to Angular adding `/browser` to the output folder of the application builder, we can't support both versions simultaneously.
 - Support simple binary expressions in default values, making it possible to e.g. write 10 MiB as `10 * 1024 * 1024` instead of `10485760`
 
 ## v0.2.1
