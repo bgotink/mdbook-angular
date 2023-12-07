@@ -2,6 +2,7 @@ mod utils;
 
 use std::{collections::HashMap, fs};
 
+use filetime::{set_file_mtime, FileTime};
 use pathdiff::diff_paths;
 use serde_json::json;
 use utils as background;
@@ -79,13 +80,14 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 	}
 
 	if is_running {
-		if !replacements
-			.iter()
-			.any(|replacement| replacement.made_changes_to_scripts)
+		if !replacements.is_empty()
+			&& !replacements
+				.iter()
+				.any(|replacement| replacement.made_changes_to_scripts)
 		{
 			// change one watched file to trigger a new build, as the HTML renderer
 			// has just wiped the target folder
-			Writer::Default.write_tsconfig(config)?;
+			set_file_mtime(root.join("code_0/code_0.ts"), FileTime::now())?;
 		}
 	} else {
 		background::start(config)?;
