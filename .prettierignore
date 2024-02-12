@@ -3,3 +3,5 @@
 
 test-book/book
 .angular
+
+src/default_template.hbs

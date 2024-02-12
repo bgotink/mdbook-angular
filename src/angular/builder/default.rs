@@ -55,7 +55,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 
 		writer.write(
 			root.join(&replacement.project_folder).join("index.html"),
-			r#"<!doctype html><html><body></body></html>"#,
+			r"<!doctype html><html><body></body></html>",
 		)?;
 
 		workspace

@@ -99,6 +99,7 @@ pub struct Config {
 	pub html: Option<Table>,
 
 	pub(crate) book_source_folder: PathBuf,
+	pub(crate) book_theme_folder: PathBuf,
 	pub(crate) angular_root_folder: PathBuf,
 	pub(crate) target_folder: PathBuf,
 }
@@ -142,6 +143,7 @@ impl Config {
 			.context("Failed to parse mdbook-angular configuration")?;
 
 		let book_source_folder = root.join(&config.book.src);
+		let book_theme_folder = book_source_folder.join("../theme");
 
 		let angular_root_folder =
 			PathBuf::from(de_config.workdir.unwrap_or("mdbook_angular".to_owned()));
@@ -165,6 +167,7 @@ impl Config {
 			html: de_config.html,
 
 			book_source_folder,
+			book_theme_folder,
 			angular_root_folder,
 			target_folder,
 		})

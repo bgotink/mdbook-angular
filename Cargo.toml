@@ -54,6 +54,8 @@ chrono = { version = "0.4.26", default-features = false, features = ["clock"] }
 
 semver = "1.0.18"
 
+handlebars = "5.0"
+
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2.147", optional = true }
 filetime = { version = "0.2", optional = true }

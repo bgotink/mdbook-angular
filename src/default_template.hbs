@@ -1,0 +1,55 @@
+{{#if code}}
+{{#if flags.collapsed}}
+<details><summary>Show code</summary>
+{{/if}}
+
+```ts
+{{code}}
+```
+
+{{#if flags.collapsed}}
+</details>
+{{/if}}
+{{/if}}
+
+{{playground}}
+
+{{#if inputs}}
+Inputs:
+
+<table class="mdbook-angular mdbook-angular-inputs">
+	<thead>
+		<th>Name</th>
+		<th>Description</th>
+		<th>Value</th>
+	</thead>
+	<tbody>
+		{{#each inputs}}<tr>
+			<td>
+				<code>{{name}}</code>
+			</td>
+			<td>{{description}}</td>
+			<td>
+				{{value}}
+			</td>
+		</tr>{{/each}}
+	</tbody>
+</table>
+{{/if}}
+
+{{#if actions}}
+Actions:
+
+<table class="mdbook-angular mdbook-angular-actions">
+	<thead>
+		<th>Action</th>
+		<th>Description</th>
+	</thead>
+	<tbody>
+		{{#each actions}}<tr>
+			<td>{{button}}</td>
+			<td>{{description}}</td>
+		</tr>{{/each}}
+	</tbody>
+</table>
+{{/if}}

@@ -2,24 +2,121 @@ extern crate alloc;
 
 use std::{
 	fs,
+	ops::Deref,
 	path::{Path, PathBuf},
 	rc::Rc,
 };
 
 use anyhow::Context;
+use handlebars::Handlebars;
 use mdbook::book::Chapter;
 use once_cell::sync::Lazy;
 use pathdiff::diff_paths;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Parser, Tag};
 use pulldown_cmark_to_cmark::cmark as markdown_to_string;
 use regex::Regex;
+use serde::Serialize;
 
 use crate::{
-	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock, PrintedCodeBlock},
+	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock},
 	Config, Error, Result,
 };
 
-struct CodeBlockCollector<'a> {
+#[derive(Serialize)]
+struct CodeBlockTemplateInput {
+	name: String,
+
+	description: Option<String>,
+
+	value: String,
+}
+
+#[derive(Serialize)]
+struct CodeBlockTemplateAction {
+	button: String,
+
+	description: String,
+}
+
+#[derive(Serialize)]
+struct CodeBlockTemplateFlags {
+	collapsed: bool,
+}
+
+#[derive(Serialize)]
+struct CodeBlockTemplateData {
+	playground: String,
+
+	code: Option<String>,
+
+	inputs: Vec<CodeBlockTemplateInput>,
+
+	actions: Vec<CodeBlockTemplateAction>,
+
+	flags: CodeBlockTemplateFlags,
+}
+
+impl CodeBlockTemplateData {
+	fn new(index: usize, code_block: &CodeBlock) -> Self {
+		let mut flags = CodeBlockTemplateFlags { collapsed: false };
+		let mut code = None;
+
+		if let Some(printed_code) = &code_block.code_to_print {
+			code = Some(Rc::deref(&printed_code.code).clone());
+			flags.collapsed = printed_code.collapsed;
+		}
+
+		let playground = if code_block.insert {
+			format!("<{0}></{0}>\n", code_block.tag)
+		} else {
+			String::new()
+		};
+
+		let mut inputs = Vec::new();
+		let mut actions = Vec::new();
+
+		if let Some(playground) = &code_block.playground {
+			for input in &playground.inputs {
+				let value = format!(
+					"<mdbook-angular-input name=\"{}\" index=\"{}\">{}</mdbook-angular-input>",
+					input.name,
+					index,
+					serde_json::to_string(&input.config)
+						.unwrap()
+						.replace('<', "&lt;")
+				);
+
+				inputs.push(CodeBlockTemplateInput {
+					name: input.name.clone(),
+					description: input.description.clone(),
+					value,
+				});
+			}
+
+			for action in &playground.actions {
+				let button = format!(
+					"<mdbook-angular-action name=\"{}\" index=\"{}\"></mdbook-angular-action>",
+					action.name, index
+				);
+
+				actions.push(CodeBlockTemplateAction {
+					button,
+					description: action.description.clone(),
+				});
+			}
+		}
+
+		Self {
+			playground,
+			code,
+			inputs,
+			actions,
+			flags,
+		}
+	}
+}
+
+struct CodeBlockCollector<'a, 'b> {
 	config: &'a Config,
 	chapter: &'a Chapter,
 
@@ -29,11 +126,26 @@ struct CodeBlockCollector<'a> {
 	current_code: Option<String>,
 
 	error: Result<()>,
+
+	handlebars: Handlebars<'b>,
 }
 
-impl<'a> CodeBlockCollector<'a> {
-	fn new(config: &'a Config, chapter: &'a Chapter) -> Self {
-		CodeBlockCollector {
+impl<'a, 'c> CodeBlockCollector<'a, 'c> {
+	fn new(config: &'a Config, chapter: &'a Chapter) -> Result<Self> {
+		let mut handlebars = Handlebars::new();
+
+		// Don't escape anything
+		handlebars.register_escape_fn(std::borrow::ToOwned::to_owned);
+
+		let template_path = config.book_theme_folder.join("angular-playground.hbs");
+		if template_path.exists() {
+			handlebars.register_template_file("playground", template_path)?;
+		} else {
+			handlebars
+				.register_template_string("playground", include_str!("default_template.hbs"))?;
+		}
+
+		Ok(CodeBlockCollector {
 			config,
 			chapter,
 			code_blocks: Vec::new(),
@@ -42,7 +154,9 @@ impl<'a> CodeBlockCollector<'a> {
 			current_code: None,
 
 			error: Ok(()),
-		}
+
+			handlebars,
+		})
 	}
 
 	fn process_event<'b>(&mut self, event: Event<'b>) -> ProcessedEvent<'b> {
@@ -178,43 +292,19 @@ impl<'a> CodeBlockCollector<'a> {
 			code_to_print,
 		) {
 			Ok(code_block) => {
-				let mut events = Vec::new();
-
-				if let Some(PrintedCodeBlock { code, collapsed }) = &code_block.code_to_print {
-					if *collapsed {
-						events.push(Event::Html(CowStr::Boxed(
-							"<details><summary>Show code</summary>\n\n"
-								.to_owned()
-								.into_boxed_str(),
-						)));
-					}
-
-					events.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(
-						CowStr::Boxed(language.to_owned().into_boxed_str()),
-					))));
-
-					events.push(Event::Text(CowStr::Boxed(
-						Rc::as_ref(code).clone().into_boxed_str(),
-					)));
-
-					events.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(
-						CowStr::Boxed(language.to_owned().into_boxed_str()),
-					))));
-
-					if *collapsed {
-						events.push(Event::Html(CowStr::Boxed(
-							"</details>\n\n".to_owned().into_boxed_str(),
-						)));
-					}
-				}
-
-				events.push(Event::Html(CowStr::Boxed(
-					print_playground(index, &code_block).into_boxed_str(),
-				)));
-
+				let data = CodeBlockTemplateData::new(index, &code_block);
 				self.code_blocks.push(code_block);
 
-				ProcessedEvent::multiple(events)
+				match self.handlebars.render("playground", &data) {
+					Ok(rendered) => {
+						// println!("got here, {rendered}");
+						ProcessedEvent::single(Event::Html(rendered.into()))
+					}
+					Err(error) => {
+						self.error(error);
+						ProcessedEvent::empty()
+					}
+				}
 			}
 			Err(error) => {
 				self.error(error);
@@ -223,98 +313,11 @@ impl<'a> CodeBlockCollector<'a> {
 		}
 	}
 
-	fn error(&mut self, error: Error) {
+	fn error<E: Into<Error>>(&mut self, error: E) {
 		if self.error.is_ok() {
-			self.error = Err(error);
+			self.error = Err(error.into());
 		}
 	}
-}
-
-fn print_playground(index: usize, code_block: &CodeBlock) -> String {
-	let mut result = Vec::new();
-
-	if code_block.insert {
-		result.push(format!("<{0}></{0}>\n", code_block.tag));
-	}
-
-	if let Some(playground) = &code_block.playground {
-		if !playground.inputs.is_empty() {
-			let inputs = playground
-				.inputs
-				.iter()
-				.map(|input| {
-					format!(
-						"\
-							<tr>\
-								<td>\
-									<code>{}</code>\
-								</td>\
-								<td>{}</td>\
-								<td>\
-									<mdbook-angular-input name=\"{0}\" index=\"{}\">{}</mdbook-angular-input>\
-								</td>\
-							</tr>\
-						",
-						&input.name,
-						input.description.as_deref().unwrap_or(""),
-						index,
-						serde_json::to_string(&input.config)
-							.unwrap()
-							.replace('<', "&lt;")
-					)
-				})
-				.collect::<String>();
-
-			result.push(format!(
-				"\n\
-					Inputs:\n\n\
-					<table class=\"mdbook-angular mdbook-angular-inputs\">\
-						<thead>\
-							<th>Name</th>
-							<th>Description</th>
-							<th>Value</th>
-						</thead>\
-						<tbody>{inputs}</tbody>\
-					</table>\n\n\
-				"
-			));
-		}
-
-		if !playground.actions.is_empty() {
-			let actions = playground
-				.actions
-				.iter()
-				.map(|action| {
-					format!(
-						"\
-							<tr>\
-								<td>\
-									<mdbook-angular-action name=\"{}\" index=\"{}\"></mdbook-angular-action>\
-								</td>\
-								<td>{}</td>\
-							</tr>\
-						",
-						&action.name, index, action.description,
-					)
-				})
-				.collect::<String>();
-
-			result.push(format!(
-				"\n\
-					Actions:\n\n\
-					<table class=\"mdbook-angular mdbook-angular-actions\">\
-						<thead>\
-							<th>Action</th>
-							<th>Description</th>
-						</thead>\
-						<tbody>{actions}</tbody>\
-					</table>\n\n\
-				"
-			));
-		}
-	}
-
-	result.join("")
 }
 
 enum ProcessedEvent<'a> {
@@ -396,7 +399,7 @@ pub(crate) fn process_markdown(
 	};
 
 	let mut new_content: String = String::with_capacity(chapter.content.len());
-	let mut collector = CodeBlockCollector::new(config, chapter);
+	let mut collector = CodeBlockCollector::new(config, chapter)?;
 
 	markdown_to_string(
 		Parser::new(&chapter.content).flat_map(|event| collector.process_event(event)),
