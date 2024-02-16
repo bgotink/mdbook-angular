@@ -7,6 +7,7 @@ jobs:
   test:
     name: Test
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
         build: [stable, beta, nightly, macos] # , windows]
@@ -14,21 +15,26 @@ jobs:
           - build: stable
             os: ubuntu-latest
             rust: stable
+            experimental: false
           - build: beta
             os: ubuntu-latest
             rust: beta
+            experimental: true
           - build: nightly
             os: ubuntu-latest
             rust: nightly
+            experimental: true
           - build: macos
             os: macos-latest
             rust: stable
+            experimental: false
           # TODO enable tests on windows once alternative for getting the mdbook
           # version from Cargo.lock is found
           #
           # - build: windows
           #   os: windows-latest
           #   rust: stable
+          #   experimental: false
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
