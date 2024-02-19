@@ -24,7 +24,7 @@ case $1 in
     asset="mdbook-angular-$TAG-$target.tar.gz"
     tar czf ../../$asset mdbook-angular
     ;;
-  macos*)
+  *macos*)
     asset="mdbook-angular-$TAG-$target.tar.gz"
     # There is a bug with BSD tar on macOS where the first 8MB of the file are
     # sometimes all NUL bytes. See https://github.com/actions/cache/issues/403
