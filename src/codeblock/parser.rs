@@ -135,7 +135,7 @@ impl CodeBlockVisitor {
 		let Some(component) = component
 			.expr
 			.as_call()
-			.and_then(|call| call.args.get(0))
+			.and_then(|call| call.args.first())
 			.and_then(|arg| arg.expr.as_object())
 		else {
 			return Ok(());

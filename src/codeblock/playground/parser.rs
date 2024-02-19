@@ -68,7 +68,7 @@ fn extract_inputs<C: comments::Comments>(
 				&None,
 				function
 					.params
-					.get(0)
+					.first()
 					.and_then(|param| extract_type_from_pat(&param.pat)),
 			),
 
