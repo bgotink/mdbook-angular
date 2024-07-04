@@ -12,7 +12,7 @@ use handlebars::Handlebars;
 use mdbook::book::Chapter;
 use once_cell::sync::Lazy;
 use pathdiff::diff_paths;
-use pulldown_cmark::{CodeBlockKind, CowStr, Event, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd};
 use pulldown_cmark_to_cmark::cmark as markdown_to_string;
 use regex::Regex;
 use serde::Serialize;
@@ -122,8 +122,7 @@ struct CodeBlockCollector<'a, 'b> {
 
 	code_blocks: Vec<CodeBlock>,
 
-	in_codeblock: bool,
-	current_code: Option<String>,
+	current_code: Option<(String, Option<String>)>,
 
 	error: Result<()>,
 
@@ -150,7 +149,6 @@ impl<'a, 'c> CodeBlockCollector<'a, 'c> {
 			chapter,
 			code_blocks: Vec::new(),
 
-			in_codeblock: false,
 			current_code: None,
 
 			error: Ok(()),
@@ -171,29 +169,29 @@ impl<'a, 'c> CodeBlockCollector<'a, 'c> {
 
 		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
 			if is_angular_codeblock(language) {
-				self.in_codeblock = true;
+				self.current_code = Some((language.as_ref().into(), None));
 				return ProcessedEvent::empty();
 			}
 		}
 
-		if self.in_codeblock {
+		if let Some((language, code)) = self.current_code.take() {
 			if let Event::Text(text) = &event {
-				self.current_code = Some(text.to_string());
+				self.current_code = Some((language, Some(text.to_string())));
 				return ProcessedEvent::empty();
 			}
 
-			if let Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
-				self.in_codeblock = false;
-
-				let Some(code) = self.current_code.take() else {
+			if let Event::End(TagEnd::CodeBlock) = &event {
+				let Some(code) = code else {
 					return ProcessedEvent::multiple(vec![
-						Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language.clone()))),
-						Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(language.clone()))),
+						Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language.into()))),
+						Event::End(TagEnd::CodeBlock),
 					]);
 				};
 
 				return self.insert_code_block(None, None, language, &code, &Some(&code));
 			}
+
+			self.current_code = Some((language, code));
 		}
 
 		let Event::Text(text) = &event else {
@@ -394,15 +392,18 @@ pub(crate) fn process_markdown(
 	config: &Config,
 	chapter: &mut Chapter,
 ) -> Result<Option<ChapterWithCodeBlocks>> {
-	let Some(source_path) = chapter.source_path.as_ref().map(Clone::clone) else {
+	let Some(source_path) = chapter.source_path.clone() else {
 		return Ok(None);
 	};
 
 	let mut new_content: String = String::with_capacity(chapter.content.len());
 	let mut collector = CodeBlockCollector::new(config, chapter)?;
 
+	let mut options = Options::all();
+	options.remove(Options::ENABLE_SMART_PUNCTUATION);
+
 	markdown_to_string(
-		Parser::new(&chapter.content).flat_map(|event| collector.process_event(event)),
+		Parser::new_ext(&chapter.content, options).flat_map(|event| collector.process_event(event)),
 		&mut new_content,
 	)
 	.context("Failed to serialize markdown")?;

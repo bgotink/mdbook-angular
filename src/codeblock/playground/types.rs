@@ -42,7 +42,7 @@ pub(super) trait PlaygroundInputConfigExt {
 
 	fn as_boolean(&self) -> Option<bool>;
 	fn into_number(self) -> Option<serde_json::Number>;
-	fn into_string(self) -> Option<String>;
+	// fn into_string(self) -> Option<String>;
 
 	fn get_default(&self) -> Option<&Value>;
 }
@@ -82,13 +82,13 @@ impl PlaygroundInputConfigExt for PlaygroundInputConfig {
 		}
 	}
 
-	fn into_string(self) -> Option<String> {
-		if let Some(Value::String(value)) = self.default_ {
-			Some(value)
-		} else {
-			None
-		}
-	}
+	// fn into_string(self) -> Option<String> {
+	// 	if let Some(Value::String(value)) = self.default_ {
+	// 		Some(value)
+	// 	} else {
+	// 		None
+	// 	}
+	// }
 
 	#[inline]
 	fn get_default(&self) -> Option<&Value> {
@@ -116,10 +116,10 @@ impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
 		self.and_then(PlaygroundInputConfigExt::into_number)
 	}
 
-	#[inline]
-	fn into_string(self) -> Option<String> {
-		self.and_then(PlaygroundInputConfigExt::into_string)
-	}
+	// #[inline]
+	// fn into_string(self) -> Option<String> {
+	// 	self.and_then(PlaygroundInputConfigExt::into_string)
+	// }
 
 	#[inline]
 	fn get_default(&self) -> Option<&Value> {

@@ -79,6 +79,7 @@ fn open_pid_file(
 			.read(true)
 			.write(true)
 			.create(true)
+			.truncate(true)
 			.open(&pid_file_path)?;
 	}
 
@@ -149,7 +150,10 @@ pub(super) fn start(config: &Config) -> Result<()> {
 	// inside the fork!
 
 	unsafe {
-		let devnull_fd = libc::open((b"/dev/null\0" as *const [u8; 10]).cast(), libc::O_RDWR);
+		let devnull_fd = libc::open(
+			std::ptr::from_ref::<[u8; 10]>(b"/dev/null\0").cast(),
+			libc::O_RDWR,
+		);
 		if devnull_fd == -1 {
 			return Err(io::Error::last_os_error()).context("Failed to open /dev/null");
 		}

@@ -10,7 +10,7 @@
 		"build-scripts:playground": "esbuild --minify --format=esm --loader=js <src/js/playground-io.js >src/js/playground-io.min.js"
 	},
 	"devDependencies": {
-		"@angular/cli": "^17.0.0",
+		"@angular/cli": "^18.0.0",
 		"esbuild": "^0.18.12",
 		"express-check-in": "^0.1.2",
 		"husky": "8.0.3",
