@@ -75,12 +75,6 @@ fn extract_inputs<C: comments::Comments>(
 			_ => continue,
 		};
 
-		if get_decorator(decorators, "Input").is_none() {
-			continue;
-		}
-
-		let Some(name) = to_name(key) else { continue };
-
 		let mut description: Option<String> = None;
 		let mut config: Option<PlaygroundInputConfig> = None;
 
@@ -95,25 +89,108 @@ fn extract_inputs<C: comments::Comments>(
 			}
 		}
 
-		if let Some(type_) = type_ {
-			config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
+		if let Some(input_decorator) = get_decorator(decorators, "Input") {
+			let Some(name) = get_name_from_input_decorator(input_decorator)
+				.or_else(|| to_name(key).map(ToOwned::to_owned))
+			else {
+				continue;
+			};
+
+			if let Some(type_) = type_ {
+				config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
+			}
+
+			let config = config.extend(
+				value
+					.as_ref()
+					.and_then(evaluate)
+					.unwrap_or(PlaygroundInputConfig::default()),
+			);
+
+			result.push(PlaygroundInput {
+				name,
+				description,
+				config,
+			});
+		} else if let Some(call) = value.as_ref().and_then(|value| value.as_call()) {
+			if call.callee.is_expr() && call.callee.as_expr().unwrap().is_ident_ref_to("input") {
+				let value = call.args.first().map(|v| &v.expr);
+
+				let Some(name) = get_name_from_input_signal(call)
+					.or_else(|| to_name(key).map(ToOwned::to_owned))
+				else {
+					continue;
+				};
+
+				if let Some(type_) = call
+					.type_args
+					.as_ref()
+					.and_then(|type_args| type_args.params.first())
+					.and_then(ts_type_to_input_type)
+				{
+					config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
+				}
+
+				let config = config.extend(
+					value
+						.and_then(evaluate)
+						.unwrap_or(PlaygroundInputConfig::default()),
+				);
+
+				result.push(PlaygroundInput {
+					name,
+					description,
+					config,
+				});
+			}
 		}
-
-		let config = config.extend(
-			value
-				.as_ref()
-				.and_then(evaluate)
-				.unwrap_or(PlaygroundInputConfig::default()),
-		);
-
-		result.push(PlaygroundInput {
-			name: name.to_owned(),
-			description,
-			config,
-		});
 	}
 
 	Ok(result)
+}
+
+fn get_name_from_input_decorator(decorator: &ast::Decorator) -> Option<String> {
+	let arg = decorator
+		.expr
+		.as_call()
+		.and_then(|call| call.args.first())?;
+
+	if let Some(ast::Lit::Str(str)) = arg.expr.as_lit() {
+		return Some(str.value.as_str().to_owned());
+	}
+
+	let alias = arg
+		.expr
+		.as_object()?
+		.props
+		.iter()
+		.filter_map(|prop| prop.as_prop())
+		.filter_map(|prop| prop.as_key_value())
+		.find(|prop| prop.key.is_str() && prop.key.as_str().unwrap().value.eq("alias"))?;
+
+	let ast::Lit::Str(alias) = alias.value.as_lit()? else {
+		return None;
+	};
+
+	Some(alias.value.as_str().to_owned())
+}
+
+fn get_name_from_input_signal(call: &ast::CallExpr) -> Option<String> {
+	let opts = call.args.get(1)?;
+	let opts = opts.expr.as_object()?;
+
+	let alias = opts
+		.props
+		.iter()
+		.filter_map(|prop| prop.as_prop())
+		.filter_map(|prop| prop.as_key_value())
+		.find(|prop| prop.key.is_str() && prop.key.as_str().unwrap().value.eq("alias"))?;
+
+	let ast::Lit::Str(alias) = alias.value.as_lit()? else {
+		return None;
+	};
+
+	Some(alias.value.as_str().to_owned())
 }
 
 fn extract_type_from_pat(pat: &ast::Pat) -> Option<PlaygroundInputType> {

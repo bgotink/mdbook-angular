@@ -4,6 +4,8 @@ import {
 	Input,
 	ENVIRONMENT_INITIALIZER,
 	Provider,
+	input,
+	computed,
 } from '@angular/core';
 
 @Component({
@@ -29,7 +31,7 @@ export class AnnounceComponent {
 @Component({
 	standalone: true,
 	selector: 'convince-me',
-	template: `<p>It's working well, dear {{ name }} {{ exclaim }}</p>`,
+	template: `<p>It's working well, dear {{ name() }} {{ exclaim() }}</p>`,
 	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConvinceComponent {
@@ -46,16 +48,12 @@ export class ConvinceComponent {
 	/**
 	 * Person to convince
 	 */
-	@Input()
-	name = 'Bram';
-
-	exclaim = '';
+	name = input('Bram');
 
 	/**
 	 * Number of exclamation points to write!
 	 */
-	@Input()
-	set numberOfExclamationPoints(value: number) {
-		this.exclaim = '!'.repeat(value);
-	}
+	numberOfExclamationPoints = input(0);
+
+	exclaim = computed(() => '!'.repeat(this.numberOfExclamationPoints()));
 }
