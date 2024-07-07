@@ -17,11 +17,11 @@ async function getBuildModule() {
 
 	try {
 		// @ts-expect-error This file only exists if @angular/build is installed
-		return await import('@angular/build/src/builders/application/index.js');
+		return await import('@angular/build/private');
 	} catch {}
 	try {
 		return await import(
-			'@angular-devkit/build-angular/node_modules/@angular/build/src/builders/application/index.js'
+			'@angular-devkit/build-angular/node_modules/@angular/build/src/private.js'
 		);
 	} catch {}
 
