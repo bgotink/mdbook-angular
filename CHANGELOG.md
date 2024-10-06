@@ -4,6 +4,10 @@
 
 <!-- add new items here -->
 
+- Drop support for `@angular-devkit/build-angular`, require `@angular/build` to be installed as top-level package
+- Remove the old "slow" builder
+- Replace the fast "experimental" builder with a new implementation that doesn't use any private Angular APIs
+
 ## v0.3.0
 
 - Move from Angular 16 to Angular 17. Due to Angular adding `/browser` to the output folder of the application builder, we can't support both versions simultaneously.

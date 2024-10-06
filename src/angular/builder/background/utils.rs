@@ -19,10 +19,7 @@ use std::{
 use log::{debug, error, info};
 
 use crate::{
-	angular::builder::{
-		experimental::PROJECT_NAME,
-		utils::{ANGULAR_CLI_CMD, TARGET_NAME},
-	},
+	angular::builder::utils::{ANGULAR_CLI_CMD, PROJECT_NAME, TARGET_NAME},
 	bail, Config, Context, Result,
 };
 

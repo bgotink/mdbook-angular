@@ -19,6 +19,7 @@ use serde::Serialize;
 
 use crate::{
 	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock},
+	utils::path_to_root,
 	Config, Error, Result,
 };
 
@@ -253,7 +254,7 @@ impl<'a, 'c> CodeBlockCollector<'a, 'c> {
 			events = events.concat(self.insert_code_block(
 				captures.name("class_name").map(|m| m.as_str()),
 				reexport_path.as_deref(),
-				&flags.join(","),
+				flags.join(","),
 				&contents,
 				&None,
 			));
@@ -355,37 +356,8 @@ impl<'a> Iterator for ProcessedEvent<'a> {
 }
 
 pub(crate) struct ChapterWithCodeBlocks {
-	source_path: PathBuf,
-	code_blocks: Vec<CodeBlock>,
-	script_marker: String,
-}
-
-impl ChapterWithCodeBlocks {
-	pub(crate) fn has_playgrounds(&self) -> bool {
-		self.code_blocks
-			.iter()
-			.any(|block| block.playground.is_some())
-	}
-
-	pub(crate) fn script_marker(&self) -> &str {
-		&self.script_marker
-	}
-
-	pub(crate) fn source_path(&self) -> &Path {
-		&self.source_path
-	}
-
-	pub(crate) fn number_of_code_blocks(&self) -> usize {
-		self.code_blocks.len()
-	}
-}
-
-impl IntoIterator for ChapterWithCodeBlocks {
-	type Item = CodeBlock;
-	type IntoIter = std::vec::IntoIter<CodeBlock>;
-	fn into_iter(self) -> Self::IntoIter {
-		self.code_blocks.into_iter()
-	}
+	pub(crate) source_path: PathBuf,
+	pub(crate) code_blocks: Vec<CodeBlock>,
 }
 
 pub(crate) fn process_markdown(
@@ -399,11 +371,9 @@ pub(crate) fn process_markdown(
 	let mut new_content: String = String::with_capacity(chapter.content.len());
 	let mut collector = CodeBlockCollector::new(config, chapter)?;
 
-	let mut options = Options::all();
-	options.remove(Options::ENABLE_SMART_PUNCTUATION);
-
 	markdown_to_string(
-		Parser::new_ext(&chapter.content, options).flat_map(|event| collector.process_event(event)),
+		Parser::new_ext(&chapter.content, !Options::ENABLE_SMART_PUNCTUATION)
+			.flat_map(|event| collector.process_event(event)),
 		&mut new_content,
 	)
 	.context("Failed to serialize markdown")?;
@@ -416,21 +386,25 @@ pub(crate) fn process_markdown(
 		return Ok(None);
 	}
 
-	let script_marker = format!(
-		r#"load-angular-for="{}""#,
-		source_path.as_os_str().to_string_lossy()
-	);
+	let ptr = path_to_root(&source_path);
 
 	new_content.push_str(&format!(
-		r#"{}<script type="module" {script_marker}></script>"#,
-		"\n\n"
+		r#"{}<script id="load-angular" data-path={} type="module" src="{}/browser/main.js"></script>"#,
+		"\n\n",
+		serde_json::to_string(&source_path)?,
+		&ptr,
 	));
+
+	if code_blocks.iter().any(|b| b.playground.is_some()) {
+		new_content.push_str(&format!(
+			r#"<script type="module" src="{ptr}/playground-io.min.js"></script>"#,
+		));
+	}
 
 	chapter.content = new_content;
 
 	Ok(Some(ChapterWithCodeBlocks {
 		source_path,
 		code_blocks,
-		script_marker,
 	}))
 }

@@ -1,7 +1,6 @@
 #[cfg(all(unix, feature = "background"))]
 mod background;
 mod default;
-mod experimental;
 mod utils;
 mod writer;
 
@@ -16,7 +15,6 @@ use writer::Writer;
 #[cfg(all(unix, feature = "background"))]
 pub(crate) use background::stop_background_process;
 
-#[allow(clippy::same_functions_in_if_condition)]
 pub(crate) fn build(
 	#[cfg_attr(not(all(unix, feature = "background")), allow(unused_variables))]
 	ctx: &RenderContext,
@@ -27,12 +25,12 @@ pub(crate) fn build(
 		#[cfg(not(unix))]
 		Builder::Background => {
 			warn!("The background option is not supported on windows");
-			self::experimental::build(config, chapters)
+			self::default::build(config, chapters)
 		}
 		#[cfg(all(unix, not(feature = "background")))]
 		Builder::Background => {
 			warn!("This build doesn't support the background option");
-			self::experimental::build(config, chapters)
+			self::default::build(config, chapters)
 		}
 		#[cfg(all(unix, feature = "background"))]
 		Builder::Background => {
@@ -40,10 +38,19 @@ pub(crate) fn build(
 				self::background::build(config, chapters)
 			} else {
 				warn!("The background option is ignored for commands that don't watch");
-				self::experimental::build(config, chapters)
+				self::default::build(config, chapters)
 			}
 		}
-		Builder::Experimental => self::experimental::build(config, chapters),
-		Builder::Slow => self::default::build(config, chapters),
+		Builder::Experimental => {
+			warn!(
+				r#"The experimental builder is no longer experimental, switch to "foreground" instead"#
+			);
+			self::default::build(config, chapters)
+		}
+		Builder::Slow => {
+			warn!(r#"The slow builder is no longer present, switch to "foreground" instead"#);
+			self::default::build(config, chapters)
+		}
+		Builder::Foreground => self::default::build(config, chapters),
 	}
 }

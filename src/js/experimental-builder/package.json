@@ -1,5 +1,0 @@
-{
-	"name": "experimental-builder",
-	"type": "module",
-	"builders": "./schema.json"
-}

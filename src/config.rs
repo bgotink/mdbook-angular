@@ -15,6 +15,7 @@ pub enum Builder {
 	/// This is fast, but uses internal Angular APIs to use the currently
 	/// experimental "application" builder Angular provides as of 16.2.0.
 	#[default]
+	Foreground,
 	Experimental,
 	/// Build via [`Builder::Experimental`] in a background process.
 	///

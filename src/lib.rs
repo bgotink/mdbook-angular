@@ -29,7 +29,7 @@ pub const MDBOOK_ANGULAR_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// with this expected version.
 pub const EXPECTED_MDBOOK_VERSION: &str = mdbook::MDBOOK_VERSION;
 
-use std::env;
+use std::{env, fs};
 
 pub use angular::stop_background_process;
 pub use config::{Builder, Config};
@@ -120,17 +120,22 @@ impl AngularRenderer {
 
 		HtmlHandlebars::new().render(ctx)?;
 
+		fs::write(
+			config.target_folder.join("playground-io.min.js"),
+			crate::js::PLAYGROUND_SCRIPT,
+		)?;
+
 		debug!("Finished rendering");
 
 		#[allow(unused_mut)]
-		let mut run_bulid = !chapters_with_codeblocks.is_empty();
+		let mut run_build = !chapters_with_codeblocks.is_empty();
 
 		#[cfg(debug_assertions)]
 		if env::var("MDBOOK_ANGULAR_SKIP_BUILD").is_ok() {
-			run_bulid = false;
+			run_build = false;
 		}
 
-		if run_bulid {
+		if run_build {
 			build(ctx, &config, chapters_with_codeblocks)?;
 		}
 

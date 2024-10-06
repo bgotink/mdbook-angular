@@ -1,165 +1,138 @@
-use std::{collections::HashMap, fs};
+use std::{fs, path::PathBuf};
 
 use pathdiff::diff_paths;
-use serde_json::json;
+use serde_json::{json, Value};
 
-use crate::{
-	angular::AngularWorkspace, utils::path_to_root, ChapterWithCodeBlocks, Config, Error, Result,
-};
+use crate::{angular::AngularWorkspace, ChapterWithCodeBlocks, Config, Error, Result};
 
-use super::{ng_build, utils::TARGET_NAME, writer::PlaygroundScriptWriter, Writer};
+use super::{ng_build, utils::PROJECT_NAME, utils::TARGET_NAME, Writer};
+
+pub(super) const BUILDER_NAME: &str = "@angular/build:application";
+pub(super) const MAIN_FILENAME: &str = "load-angular.ts";
+
+pub(super) fn write_angular_workspace(
+	config: &Config,
+	root: &PathBuf,
+	optimize: bool,
+) -> Result<()> {
+	let Some(output_path) = diff_paths(&config.target_folder, root) else {
+		return Err(Error::msg("Failed to find relative target folder"));
+	};
+
+	let mut workspace = AngularWorkspace::new();
+
+	workspace.add_project(PROJECT_NAME, "").add_target(
+		TARGET_NAME,
+		BUILDER_NAME,
+		json!({
+		  "progress": false,
+			"deleteOutputPath": false,
+
+		  "index": false,
+		  "aot": true,
+		  "tsConfig": "tsconfig.json",
+		  "browser": MAIN_FILENAME,
+			"inlineStyleLanguage": &config.inline_style_language,
+			"outputPath": output_path,
+
+			"statsJson": optimize,
+			"optimization": if optimize {
+				json!({
+					"styles": {
+						"inlineCritical": false,
+						"minify": true,
+					},
+					"scripts": true,
+				})
+			} else {
+				json!(false)
+			},
+			"outputHashing": if optimize { "all" } else { "none" },
+		}),
+	);
+
+	workspace.write(root)?;
+	Ok(())
+}
 
 pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
-	let mut workspace = AngularWorkspace::new();
-	let writer = Writer::Default;
-
 	let root = &config.angular_root_folder;
+	let mut writer = Writer::new(false);
+
 	if root.exists() {
 		fs::remove_dir_all(root)?;
 	}
 
 	fs::create_dir_all(root)?;
+
 	writer.write_tsconfig(config)?;
 
-	let Some(root_target_folder) = diff_paths(&config.target_folder, root) else {
-		return Err(Error::msg("Failed to find relative target folder"));
-	};
+	write_angular_workspace(config, root, config.optimize)?;
 
-	let mut replacements = Vec::with_capacity(chapters.len());
+	let mut chapter_paths: Vec<PathBuf> = Vec::with_capacity(chapters.len());
 
-	let (optimization, output_hashing) = if config.optimize {
-		(
-			json!({
-				"scripts": true,
-				"styles": {
-					"minify": true,
-					"inlineCritical": false
-				},
-				"fonts": false
-			}),
-			json!("all"),
-		)
-	} else {
-		(json!(false), json!("none"))
-	};
-
-	for (index, chapter) in chapters.into_iter().enumerate() {
-		let project_name = format!("code_{index}");
-
-		let replacement = writer.write_chapter(config, root, index, chapter)?;
-
-		writer.write(
-			root.join(&replacement.project_folder).join("tsconfig.json"),
-			r#"{"extends":"../tsconfig.json"}"#,
-		)?;
-
-		writer.write(
-			root.join(&replacement.project_folder).join("index.html"),
-			r"<!doctype html><html><body></body></html>",
-		)?;
-
-		workspace
-			.add_project(&project_name, &replacement.project_folder)
-			.add_target(
-				TARGET_NAME,
-				"@angular-devkit/build-angular:browser-esbuild",
-				json!({
-					"commonChunk": false,
-					"index": format!("{}/index.html", &replacement.project_folder),
-					"inlineStyleLanguage": &config.inline_style_language,
-					"main": format!("{}/{}.ts", &replacement.project_folder, replacement.script_basename),
-					"optimization": &optimization,
-					"outputHashing": &output_hashing,
-					"progress": false,
-					"tsConfig": format!("{}/tsconfig.json", &replacement.project_folder),
-					"outputPath": root_target_folder.join(&replacement.project_folder).as_os_str().to_string_lossy()
-				}),
-			);
-
-		replacements.push(replacement);
+	for (
+		index,
+		ChapterWithCodeBlocks {
+			source_path,
+			code_blocks,
+		},
+	) in chapters.into_iter().enumerate()
+	{
+		writer.write_chapter(root, index, &source_path, code_blocks)?;
+		chapter_paths.push(source_path);
 	}
 
-	workspace.write(root)?;
+	writer.write_main(config, root)?;
 
-	run_replacements(replacements, config)?;
+	ng_build(root)?;
+
+	if config.optimize {
+		replace_load_angular_script_path(config, chapter_paths)?;
+	}
 
 	Ok(())
 }
 
-fn run_replacements(
-	replacements: Vec<super::writer::PostBuildReplacement>,
-	config: &Config,
-) -> Result<()> {
-	let mut marker_to_script_map = HashMap::new();
-	let mut playground_writer = PlaygroundScriptWriter::new(config);
+fn replace_load_angular_script_path(config: &Config, chapters: Vec<PathBuf>) -> Result<()> {
+	let stats_path = config.target_folder.join("stats.json");
+	let stats: Value = serde_json::from_str(&fs::read_to_string(&stats_path)?)?;
 
-	for (index, replacement) in replacements.into_iter().enumerate() {
-		let project_name = format!("code_{index}");
+	fs::remove_file(stats_path)?;
 
-		ng_build(&config.angular_root_folder, &project_name)?;
+	let output = stats
+		.get("outputs")
+		.and_then(Value::as_object)
+		.ok_or_else(|| Error::msg("Failed to parse stats.json"))?;
+	let (main_file, _) = output
+		.iter()
+		.find(|(_, output)| {
+			matches!(
+				output.get("entryPoint").and_then(Value::as_str),
+				Some(MAIN_FILENAME)
+			)
+		})
+		.ok_or_else(|| Error::msg("Failed to find main file in stats.json"))?;
 
-		let mut chapter_path = config.target_folder.join(&replacement.chapter_path);
+	let main_file = format!("browser/{main_file}",);
+
+	for chapter_path in chapters {
+		let mut chapter_path = config.target_folder.join(chapter_path);
 		chapter_path.set_extension("html");
 
-		let chapter = fs::read_to_string(&chapter_path)?;
-		let path_to_root = path_to_root(&replacement.chapter_path);
+		if let Ok(chapter) = fs::read_to_string(&chapter_path) {
+			let chapter = chapter.replace("browser/main.js", &main_file);
 
-		let Some(main_filename) =
-			fs::read_dir(config.target_folder.join(&replacement.project_folder))?
-				.filter_map(Result::ok)
-				.find(|entry| {
-					let file_name = entry.file_name();
-					let file_name = file_name.to_string_lossy();
-					file_name.ends_with(".js") && file_name.starts_with("main.")
-				})
-		else {
-			return Err(Error::msg(format!(
-				"Failed to find angular application for chapter {:?}",
-				replacement.chapter_path
-			)));
-		};
-
-		let main_filename = format!(
-			"{}/{}",
-			replacement.project_folder,
-			main_filename.file_name().to_string_lossy()
-		);
-
-		let app_script_src = format!(r#"src="{}/{}""#, path_to_root, &main_filename);
-
-		let mut chapter = chapter.replace(&replacement.script_marker, &app_script_src);
-		playground_writer.insert_playground_script(&replacement, &mut chapter, &path_to_root);
-
-		marker_to_script_map.insert(
-			replacement.script_marker,
-			(main_filename, replacement.has_playgrounds),
-		);
-
-		fs::write(&chapter_path, &chapter)?;
+			fs::write(&chapter_path, &chapter)?;
+		}
 	}
 
 	let index_path = config.target_folder.join("index.html");
 	if let Ok(index) = fs::read_to_string(&index_path) {
-		for (marker, (main_filename, has_playgrounds)) in marker_to_script_map {
-			if !index.contains(&marker) {
-				continue;
-			}
+		let index = index.replace("browser/main.js", &main_file);
 
-			let app_script_src = format!(r#"src="{main_filename}""#);
-
-			let mut index = index.replace(&marker, &app_script_src);
-
-			if has_playgrounds {
-				index.push_str(r#"<script type="module" src="playground-io.min.js"></script>"#);
-			}
-
-			fs::write(index_path, index)?;
-
-			break;
-		}
+		fs::write(&index_path, &index)?;
 	}
-
-	playground_writer.write_playground_file()?;
 
 	Ok(())
 }

@@ -9,11 +9,12 @@ use crate::{Error, Result};
 
 pub(super) const ANGULAR_CLI_CMD: &str = "ng";
 pub(super) const TARGET_NAME: &str = "build";
+pub(super) const PROJECT_NAME: &str = "application";
 
-pub(super) fn ng_build(root: &Path, project_name: &str) -> Result<()> {
+pub(super) fn ng_build(root: &Path) -> Result<()> {
 	let result = Command::new(ANGULAR_CLI_CMD)
 		.arg(TARGET_NAME)
-		.arg(project_name)
+		.arg(PROJECT_NAME)
 		.current_dir(root)
 		.stdout(Stdio::inherit())
 		.stderr(Stdio::inherit())
