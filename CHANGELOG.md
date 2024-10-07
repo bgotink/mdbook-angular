@@ -4,6 +4,8 @@
 
 <!-- add new items here -->
 
+## v0.4.0
+
 - Drop support for `@angular-devkit/build-angular`, require `@angular/build` to be installed as top-level package
 - Remove the old "slow" builder
 - Replace the fast "experimental" builder with a new implementation that doesn't use any private Angular APIs
