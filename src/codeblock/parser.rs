@@ -7,12 +7,12 @@ use swc_core::{
 	common::{
 		comments::SingleThreadedComments,
 		errors::{Handler, HANDLER},
-		source_map::Pos,
+		source_map::SmallPos,
 		BytePos, FileName, SourceFile, Span, Spanned,
 	},
 	ecma::{
 		ast::{self, EsVersion},
-		parser::{self, Syntax, TsConfig},
+		parser::{self, Syntax, TsSyntax},
 	},
 };
 
@@ -227,19 +227,15 @@ pub(super) fn parse_codeblock(
 
 	let handler = Handler::with_emitter_writer(Box::new(io::stderr()), None);
 
-	let source_file = SourceFile::new_from(
-		FileName::Anon,
-		false,
-		FileName::Anon,
-		code.clone(),
-		START_OF_FILE,
-	);
+	let name: Rc<_> = FileName::Anon.into();
+
+	let source_file = SourceFile::new_from(name.clone(), false, name, code.clone(), START_OF_FILE);
 
 	let comments = SingleThreadedComments::default();
 
 	let program = parser::parse_file_as_program(
 		&source_file,
-		Syntax::Typescript(TsConfig {
+		Syntax::Typescript(TsSyntax {
 			tsx: false,
 			decorators: true,
 			dts: false,

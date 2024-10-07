@@ -233,7 +233,7 @@ fn extract_actions<C: comments::Comments>(
 
 fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 	match prop_name {
-		ast::PropName::Ident(ast::Ident { sym, .. }) => Some(sym.as_ref()),
+		ast::PropName::Ident(ast::IdentName { sym, .. }) => Some(sym.as_ref()),
 		ast::PropName::Str(ast::Str { value, .. }) => Some(value.as_ref()),
 		_ => None,
 	}
