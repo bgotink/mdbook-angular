@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use mdbook::renderer::RenderContext;
 use serde::Deserialize;
 use toml::value::Table;
@@ -45,6 +45,7 @@ struct DeConfig {
 	tsconfig: Option<PathBuf>,
 	inline_style_language: Option<String>,
 	optimize: Option<bool>,
+	zoneless: Option<bool>,
 	polyfills: Option<Vec<String>>,
 	workdir: Option<String>,
 
@@ -52,6 +53,7 @@ struct DeConfig {
 }
 
 /// Configuration for mdbook-angular
+#[allow(clippy::struct_excessive_bools)]
 pub struct Config {
 	/// Builder to use to compile the angular code
 	///
@@ -86,9 +88,15 @@ pub struct Config {
 	///
 	/// Default value: `false`
 	pub optimize: bool,
+	/// Whether to enable Angular Zoneless
+	///
+	/// Requires Angular 20 or later.
+	///
+	/// Default value: `false`
+	pub zoneless: bool,
 	/// Polyfills to import, if any
 	///
-	/// Note: zone.js is always included as polyfill.
+	/// Note: zone.js is always included as polyfill, unless zoneless is set.
 	///
 	/// This only supports bare specifiers, you can't add relative imports here.
 	pub polyfills: Vec<String>,
@@ -156,6 +164,20 @@ impl Config {
 
 		let target_folder = destination;
 
+		let zoneless = de_config.zoneless.unwrap_or(false);
+		let mut polyfills = de_config.polyfills.unwrap_or_default();
+
+		let zone_polyfill = "zone.js".to_owned();
+		let has_zone_polyfill = polyfills.contains(&zone_polyfill);
+		if zoneless && has_zone_polyfill {
+			return Err(anyhow!(
+				"The zone.js polyfill cannot be included if zoneless is enabled"
+			));
+		}
+		if !zoneless && !has_zone_polyfill {
+			polyfills.push(zone_polyfill);
+		}
+
 		Ok(Config {
 			builder: de_config.builder,
 			collapsed: de_config.collapsed.unwrap_or(false),
@@ -163,7 +185,8 @@ impl Config {
 			tsconfig: de_config.tsconfig.map(|tsconfig| root.join(tsconfig)),
 			inline_style_language: de_config.inline_style_language.unwrap_or("css".to_owned()),
 			optimize: de_config.optimize.unwrap_or(false),
-			polyfills: de_config.polyfills.unwrap_or_default(),
+			zoneless,
+			polyfills,
 
 			html: de_config.html,
 

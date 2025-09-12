@@ -57,7 +57,7 @@ pub(super) fn write_angular_workspace(
 
 pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
 	let root = &config.angular_root_folder;
-	let mut writer = Writer::new(false);
+	let mut writer = Writer::new(config, false);
 
 	if root.exists() {
 		fs::remove_dir_all(root)?;
@@ -65,7 +65,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 
 	fs::create_dir_all(root)?;
 
-	writer.write_tsconfig(config)?;
+	writer.write_tsconfig()?;
 
 	write_angular_workspace(config, root, config.optimize)?;
 
@@ -83,7 +83,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 		chapter_paths.push(source_path);
 	}
 
-	writer.write_main(config, root)?;
+	writer.write_main(root)?;
 
 	ng_build(root)?;
 

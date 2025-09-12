@@ -4,19 +4,23 @@ use serde_json::json;
 
 use crate::{codeblock::CodeBlock, Config, Context, Result};
 
-pub(super) struct Writer {
+pub(super) struct Writer<'a> {
 	changed_only: bool,
+	config: &'a Config,
 	chapter_to_angular_file: Vec<(String, String)>,
 }
 
-impl Writer {
-	pub(super) fn new(changed_only: bool) -> Self {
+impl<'a> Writer<'a> {
+	pub(super) fn new(config: &'a Config, changed_only: bool) -> Self {
 		Self {
 			changed_only,
+			config,
 			chapter_to_angular_file: Vec::new(),
 		}
 	}
+}
 
+impl Writer<'_> {
 	pub(super) fn write<P: AsRef<Path>>(&self, path: P, contents: &str) -> Result<()> {
 		if self.changed_only
 			&& matches!(fs::read_to_string(&path), Ok(existing) if existing.eq(contents))
@@ -52,19 +56,34 @@ impl Writer {
 
 		let mut main_script = Vec::with_capacity(1 + code_blocks.len());
 
-		main_script.push(
-			"\n\
-				import {NgZone, type ApplicationRef, type Provider, type EnvironmentProviders, type Type} from '@angular/core';\n\
-				import {bootstrapApplication} from '@angular/platform-browser';\n\
-				const zone = new NgZone({});\n\
-				function makeProviders(component: Type<unknown> & {rootProviders?: readonly (Provider | EnvironmentProviders)[] | null | undefined}) {\n\
-					return [{provide: NgZone, useValue: zone}, ...(component.rootProviders ?? [])];\n\
-				}\n\
-				const applications: Promise<ApplicationRef>[] = [];\n\
-				(globalThis as any).mdBookAngular = {zone, applications};\n\
-			"
-			.to_owned(),
-		);
+		if self.config.zoneless {
+			main_script.push(
+          "\n\
+              import {provideZonelessChangeDetection, type ApplicationRef, type Provider, type EnvironmentProviders, type Type} from '@angular/core';\n\
+              import {bootstrapApplication} from '@angular/platform-browser';\n\
+              function makeProviders(component: Type<unknown> & {rootProviders?: readonly (Provider | EnvironmentProviders)[] | null | undefined}) {\n\
+                  return [provideZonelessChangeDetection(), ...(component.rootProviders ?? [])];\n\
+              }\n\
+              const applications: Promise<ApplicationRef>[] = [];\n\
+              (globalThis as any).mdBookAngular = {zone: null, applications};\n\
+          "
+          .to_owned(),
+      );
+		} else {
+			main_script.push(
+          "\n\
+              import {NgZone, type ApplicationRef, type Provider, type EnvironmentProviders, type Type} from '@angular/core';\n\
+              import {bootstrapApplication} from '@angular/platform-browser';\n\
+              const zone = new NgZone({});\n\
+              function makeProviders(component: Type<unknown> & {rootProviders?: readonly (Provider | EnvironmentProviders)[] | null | undefined}) {\n\
+                  return [{provide: NgZone, useValue: zone}, ...(component.rootProviders ?? [])];\n\
+              }\n\
+              const applications: Promise<ApplicationRef>[] = [];\n\
+              (globalThis as any).mdBookAngular = {zone, applications};\n\
+          "
+          .to_owned(),
+      );
+		}
 
 		for (code_block_index, code_block) in code_blocks.into_iter().enumerate() {
 			self.write(
@@ -99,15 +118,12 @@ impl Writer {
 		Ok(())
 	}
 
-	pub(super) fn write_main<P: AsRef<Path>>(&self, config: &Config, root: P) -> Result<()> {
-		let mut main_script =
-			Vec::with_capacity(3 + config.polyfills.len() + self.chapter_to_angular_file.len());
+	pub(super) fn write_main<P: AsRef<Path>>(&self, root: P) -> Result<()> {
+		let mut main_script = Vec::with_capacity(
+			3 + self.config.polyfills.len() + self.chapter_to_angular_file.len(),
+		);
 
-		if !config.polyfills.contains(&"zone.js".to_owned()) {
-			main_script.push("import 'zone.js';".to_owned());
-		}
-
-		for polyfill in &config.polyfills {
+		for polyfill in &self.config.polyfills {
 			main_script.push(format!("import '{polyfill}';"));
 		}
 
@@ -129,8 +145,8 @@ impl Writer {
 		Ok(())
 	}
 
-	pub(super) fn write_tsconfig(&self, config: &Config) -> Result<()> {
-		let tsconfig = if let Some(tsconfig) = &config.tsconfig {
+	pub(super) fn write_tsconfig(&self) -> Result<()> {
+		let tsconfig = if let Some(tsconfig) = &self.config.tsconfig {
 			json!({"extends": tsconfig.to_string_lossy()})
 		} else {
 			json!({
@@ -149,7 +165,7 @@ impl Writer {
 		};
 
 		self.write(
-			config.angular_root_folder.join("tsconfig.json"),
+			self.config.angular_root_folder.join("tsconfig.json"),
 			&serde_json::to_string(&tsconfig)?,
 		)
 		.context("failed to write tsconfig.json")?;

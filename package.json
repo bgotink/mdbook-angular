@@ -8,8 +8,8 @@
 		"build-scripts": "esbuild --minify --format=esm --loader=js <src/js/playground-io.js >src/js/playground-io.min.js"
 	},
 	"devDependencies": {
-		"@angular/cli": "^18.0.0",
-		"esbuild": "^0.18.12",
+		"@angular/cli": "^20.0.0",
+		"esbuild": "^0.25.9",
 		"express-check-in": "^0.1.2",
 		"husky": "8.0.3",
 		"is-ci": "3.0.1",

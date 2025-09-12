@@ -11,7 +11,6 @@ use super::{default::write_angular_workspace, Writer};
 
 pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
 	let root = &config.angular_root_folder;
-	let mut writer = Writer::new(true);
 
 	let mut root_exists = root.exists();
 	if root_exists && !background::is_running(config)? {
@@ -26,11 +25,7 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 		fs::create_dir_all(root)?;
 	}
 
-	if !is_running {
-		write_angular_workspace(config, root, false)?;
-
-		writer.write_tsconfig(config)?;
-	}
+	let mut writer = Writer::new(config, true);
 
 	for (
 		index,
@@ -43,7 +38,13 @@ pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Re
 		writer.write_chapter(root, index, &source_path, code_blocks)?;
 	}
 
-	writer.write_main(config, root)?;
+	writer.write_main(root)?;
+
+	if !is_running {
+		writer.write_tsconfig()?;
+
+		write_angular_workspace(config, root, false)?;
+	}
 
 	if !is_running {
 		background::start(config)?;
