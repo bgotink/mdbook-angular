@@ -77,16 +77,20 @@ customElements.define(
 					/** @type {Promise<import('@angular/core').ApplicationRef>} */ (
 						mdBookAngular.applications[index]
 					);
-				let zone = /** @type {import('@angular/core').NgZone} */ (
+				let zone = /** @type {import('@angular/core').NgZone | null} */ (
 					mdBookAngular.zone
 				);
 
 				app.then(app => {
 					const component = app.components[0];
 
-					zone.run(() => {
+					if (zone) {
+						zone.run(() => {
+							component.setInput(name, getValue());
+						});
+					} else {
 						component.setInput(name, getValue());
-					});
+					}
 				});
 			}
 
@@ -135,16 +139,20 @@ customElements.define(
 					/** @type {Promise<import('@angular/core').ApplicationRef>} */ (
 						mdBookAngular.applications[index]
 					);
-				let zone = /** @type {import('@angular/core').NgZone} */ (
+				let zone = /** @type {import('@angular/core').NgZone | null} */ (
 					mdBookAngular.zone
 				);
 
 				app.then(app => {
 					const component = app.components[0];
 
-					zone.run(() => {
+					if (zone) {
+						zone.run(() => {
+							component.instance[name]();
+						});
+					} else {
 						component.instance[name]();
-					});
+					}
 				});
 			});
 		}
