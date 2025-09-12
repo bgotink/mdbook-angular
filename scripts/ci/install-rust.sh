@@ -23,19 +23,18 @@ then
         rustup component add rust-std-$TARGET --toolchain=$TOOLCHAIN
     fi
 
-    case "$TARGET" in
-        aarch64-unknown-linux-musl)
-            MUSL_DOWNLOAD=https://musl.cc/aarch64-linux-musl-cross.tgz
-            ;;
-        x86_64-unknown-linux-musl)
-            MUSL_DOWNLOAD=https://musl.cc/x86_64-linux-musl-cross.tgz
-            sudo ln -s /usr/local/bin/{x86_64-linux-,}musl-gcc
-            ;;
-    esac
-
-    if [ -n "$MUSL_DOWNLOAD" ]
+		if [[ $TARGET == *musl ]]
+		then
+			# This is needed by libdbus-sys.
+			sudo apt update -y && sudo apt install musl-dev musl-tools -y
+		fi
+		if [[ $TARGET == "aarch64-unknown-linux-musl" ]]
     then
-        curl -SsL "$MUSL_DOWNLOAD" | sudo tar -xvzC /usr/local --strip-components 1
+        echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld >> $GITHUB_ENV
+        # This `CC` is some nonsense needed for libdbus-sys (via opener).
+        # I don't know if this is really the right thing to do, but it seems to work.
+        sudo apt install gcc-aarch64-linux-gnu -y
+        echo CC=aarch64-linux-gnu-gcc >> $GITHUB_ENV
     fi
 fi
 
