@@ -1,7 +1,7 @@
-use std::{io, path::Path, rc::Rc};
+use std::{io, path::Path, rc::Rc, sync::LazyLock};
 
+use bytes_str::BytesStr;
 use log::debug;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use swc_core::{
 	common::{
@@ -20,7 +20,7 @@ use crate::{utils::swc::get_decorator, Error, Result};
 
 use super::playground::{parse_playground, Playground};
 
-static TS_EXT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\.([cm]?)ts(x?)$").unwrap());
+static TS_EXT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\.([cm]?)ts(x?)$").unwrap());
 static START_OF_FILE: BytePos = BytePos(1);
 
 pub(super) struct ParsedCodeBlock {
@@ -45,7 +45,7 @@ struct CodeBlockVisitor {
 
 impl CodeBlockVisitor {
 	fn get_selector(&mut self, decorator: &ast::ObjectLit, name: &str) -> Result<String> {
-		static INDENTATION: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s+").unwrap());
+		static INDENTATION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s+").unwrap());
 
 		let selector = decorator
 			.props
@@ -61,17 +61,23 @@ impl CodeBlockVisitor {
 
 		if let Some(selector) = selector {
 			let selector = selector.value.as_lit().and_then(|lit| match lit {
-				ast::Lit::Str(selector) => Some(selector.value.as_ref()),
+				ast::Lit::Str(ref selector) => Some(&selector.value),
 				_ => None,
 			});
 
-			return if let Some(selector) = selector {
-				Ok(selector.to_owned())
-			} else {
-				Err(Error::msg(format!(
+			let Some(selector) = selector else {
+				return Err(Error::msg(format!(
 					"Selector isn't a string literal in class {name}"
-				)))
+				)));
 			};
+
+			let Some(selector) = selector.as_str() else {
+				return Err(Error::msg(format!(
+					"Selector is not a valid string in class {name}"
+				)));
+			};
+
+			return Ok(selector.to_owned());
 		}
 
 		let Some(generated_selector) = self.index.map(|i| format!("codeblock-{i}")) else {
@@ -189,7 +195,7 @@ impl CodeBlockVisitor {
 	fn visit_export_default_decl(&mut self, n: &ast::ExportDefaultDecl) -> Result<()> {
 		if let Some(n) = n.decl.as_class() {
 			self.visit_exported_class("default", &n.class)?;
-		};
+		}
 
 		Ok(())
 	}
@@ -208,7 +214,7 @@ impl CodeBlockVisitor {
 				ast::ModuleDecl::ExportDefaultDecl(n) => self.visit_export_default_decl(n)?,
 				ast::ModuleDecl::ExportDecl(n) => self.visit_export_decl(n)?,
 				_ => {}
-			};
+			}
 		}
 
 		Ok(())
@@ -223,13 +229,17 @@ pub(super) fn parse_codeblock(
 	class_name: Option<&str>,
 	reexport_path: Option<&Path>,
 ) -> Result<ParsedCodeBlock> {
-	let code = Rc::new(code.to_owned());
-
 	let handler = Handler::with_emitter_writer(Box::new(io::stderr()), None);
 
 	let name: Rc<_> = FileName::Anon.into();
 
-	let source_file = SourceFile::new_from(name.clone(), false, name, code.clone(), START_OF_FILE);
+	let source_file = SourceFile::new(
+		name.clone(),
+		false,
+		name,
+		BytesStr::from_str_slice(code),
+		START_OF_FILE,
+	);
 
 	let comments = SingleThreadedComments::default();
 
@@ -253,7 +263,7 @@ pub(super) fn parse_codeblock(
 
 	let mut visitor = CodeBlockVisitor {
 		class_name: class_name.map(ToOwned::to_owned),
-		source: code,
+		source: Rc::from(code.to_owned()),
 		source_file,
 		comments,
 		index: match reexport_path {

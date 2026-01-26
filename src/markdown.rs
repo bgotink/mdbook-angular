@@ -1,16 +1,17 @@
 extern crate alloc;
 
 use std::{
+	fmt::Write,
 	fs,
 	ops::Deref,
 	path::{Path, PathBuf},
 	rc::Rc,
+	sync::LazyLock,
 };
 
 use anyhow::Context;
 use handlebars::Handlebars;
 use mdbook::book::Chapter;
-use once_cell::sync::Lazy;
 use pathdiff::diff_paths;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd};
 use pulldown_cmark_to_cmark::cmark as markdown_to_string;
@@ -130,7 +131,7 @@ struct CodeBlockCollector<'a, 'b> {
 	handlebars: Handlebars<'b>,
 }
 
-impl<'a, 'c> CodeBlockCollector<'a, 'c> {
+impl<'a> CodeBlockCollector<'a, '_> {
 	fn new(config: &'a Config, chapter: &'a Chapter) -> Result<Self> {
 		let mut handlebars = Handlebars::new();
 
@@ -159,7 +160,7 @@ impl<'a, 'c> CodeBlockCollector<'a, 'c> {
 	}
 
 	fn process_event<'b>(&mut self, event: Event<'b>) -> ProcessedEvent<'b> {
-		static TAG_ANGULAR: Lazy<Regex> = Lazy::new(|| {
+		static TAG_ANGULAR: LazyLock<Regex> = LazyLock::new(|| {
 			Regex::new(r"\{\{#angular\s+(?<path>\S+?)(?:#(?<class_name>\S+))?(?<flags>\s+.*?)?\}\}")
 				.unwrap()
 		});
@@ -388,17 +389,19 @@ pub(crate) fn process_markdown(
 
 	let ptr = path_to_root(&source_path);
 
-	new_content.push_str(&format!(
+	write!(
+		new_content,
 		r#"{}<script id="load-angular" data-path={} type="module" src="{}/browser/main.js"></script>"#,
 		"\n\n",
 		serde_json::to_string(&source_path)?,
 		&ptr,
-	));
+	)?;
 
 	if code_blocks.iter().any(|b| b.playground.is_some()) {
-		new_content.push_str(&format!(
+		write!(
+			new_content,
 			r#"<script type="module" src="{ptr}/playground-io.min.js"></script>"#,
-		));
+		)?;
 	}
 
 	chapter.content = new_content;

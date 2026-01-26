@@ -156,7 +156,7 @@ fn get_name_from_input_decorator(decorator: &ast::Decorator) -> Option<String> {
 		.and_then(|call| call.args.first())?;
 
 	if let Some(ast::Lit::Str(str)) = arg.expr.as_lit() {
-		return Some(str.value.as_str().to_owned());
+		return str.value.as_str().map(ToOwned::to_owned);
 	}
 
 	let alias = arg
@@ -172,7 +172,7 @@ fn get_name_from_input_decorator(decorator: &ast::Decorator) -> Option<String> {
 		return None;
 	};
 
-	Some(alias.value.as_str().to_owned())
+	alias.value.as_str().map(ToOwned::to_owned)
 }
 
 fn get_name_from_input_signal(call: &ast::CallExpr) -> Option<String> {
@@ -190,7 +190,7 @@ fn get_name_from_input_signal(call: &ast::CallExpr) -> Option<String> {
 		return None;
 	};
 
-	Some(alias.value.as_str().to_owned())
+	alias.value.as_str().map(ToOwned::to_owned)
 }
 
 fn extract_type_from_pat(pat: &ast::Pat) -> Option<PlaygroundInputType> {
@@ -234,7 +234,7 @@ fn extract_actions<C: comments::Comments>(
 fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 	match prop_name {
 		ast::PropName::Ident(ast::IdentName { sym, .. }) => Some(sym.as_ref()),
-		ast::PropName::Str(ast::Str { value, .. }) => Some(value.as_ref()),
+		ast::PropName::Str(ast::Str { value, .. }) => value.as_str(),
 		_ => None,
 	}
 }

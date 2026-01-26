@@ -173,7 +173,7 @@ pub(super) fn start(config: &Config) -> Result<()> {
 		.current_dir(&config.angular_root_folder)
 		.exec();
 
-	error!("Failed to exec angular: {}", err);
+	error!("Failed to exec angular: {err}");
 
 	#[allow(clippy::exit)]
 	exit(1);

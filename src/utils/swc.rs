@@ -1,6 +1,5 @@
-use std::{borrow::Cow, collections::VecDeque};
+use std::{borrow::Cow, collections::VecDeque, sync::LazyLock};
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use swc_core::{
 	common::comments::{self, CommentKind},
@@ -8,8 +7,10 @@ use swc_core::{
 };
 
 pub(crate) fn clean_comment(comment: &comments::Comment) -> String {
-	static COMMENT_BLOCK_LINE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*\*\s?").unwrap());
-	static LINE_COMMENT_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*//\s?").unwrap());
+	static COMMENT_BLOCK_LINE_START: LazyLock<Regex> =
+		LazyLock::new(|| Regex::new(r"^\s*\*\s?").unwrap());
+	static LINE_COMMENT_START: LazyLock<Regex> =
+		LazyLock::new(|| Regex::new(r"^\s*//\s?").unwrap());
 
 	let start_of_line_regex = match comment.kind {
 		CommentKind::Block => &COMMENT_BLOCK_LINE_START,
@@ -55,6 +56,6 @@ pub(crate) fn get_decorator<'a>(
 			.as_call()
 			.and_then(|call| call.callee.as_expr())
 			.and_then(|callee| callee.as_ident())
-			.map_or(false, |ident| ident.sym.as_ref() == name)
+			.is_some_and(|ident| ident.sym.as_ref() == name)
 	})
 }

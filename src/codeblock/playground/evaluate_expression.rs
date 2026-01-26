@@ -254,11 +254,13 @@ pub(super) fn ts_type_to_input_type<T: AsRef<ast::TsType>>(
 				.iter()
 				.filter_map(|t| t.as_ts_lit_type())
 				.filter_map(|t| t.lit.as_str())
-				.map(|v| v.value.to_string())
+				.filter_map(|v| v.value.as_str())
 				.collect();
 
 			if string_types.len() == types.len() {
-				Some(PlaygroundInputType::Enum(string_types))
+				Some(PlaygroundInputType::Enum(
+					string_types.into_iter().map(ToOwned::to_owned).collect(),
+				))
 			} else {
 				None
 			}
@@ -276,9 +278,11 @@ pub(super) fn evaluate<T: AsRef<ast::Expr>>(expr: T) -> Option<PlaygroundInputCo
 			Number::from_f64(value.value).map(Value::Number),
 			PlaygroundInputType::Number,
 		)),
-		ast::Expr::Lit(ast::Lit::Str(value)) => {
-			Some(PlaygroundInputConfig::from_default(value.value.to_string()))
-		}
+		ast::Expr::Lit(ast::Lit::Str(value)) => value
+			.value
+			.as_str()
+			.map(ToOwned::to_owned)
+			.map(PlaygroundInputConfig::from_default),
 
 		ast::Expr::Tpl(_) => Some(PlaygroundInputConfig::string()),
 

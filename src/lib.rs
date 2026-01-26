@@ -47,7 +47,7 @@ use mdbook::{
 fn validate_version(ctx: &RenderContext) -> Result<()> {
 	let req = semver::VersionReq::parse(EXPECTED_MDBOOK_VERSION).unwrap();
 
-	if semver::Version::parse(&ctx.version).map_or(false, |version| req.matches(&version)) {
+	if semver::Version::parse(&ctx.version).is_ok_and(|version| req.matches(&version)) {
 		Ok(())
 	} else {
 		bail!("Invalid mdbook version {}, expected {}", &ctx.version, req);
@@ -60,7 +60,7 @@ pub(crate) use anyhow::{bail, Context, Error, Result};
 pub struct AngularRenderer {}
 
 impl Renderer for AngularRenderer {
-	fn name(&self) -> &str {
+	fn name(&self) -> &'static str {
 		"angular"
 	}
 
@@ -108,7 +108,7 @@ impl AngularRenderer {
 						}
 					}
 					Err(error) => result = Err(error),
-				};
+				}
 			}
 		});
 
