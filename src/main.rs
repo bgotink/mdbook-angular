@@ -7,8 +7,8 @@ use std::{
 
 use anyhow::{Context, Result};
 use log::{warn, LevelFilter};
-use mdbook::renderer::RenderContext;
 use mdbook_angular::{stop_background_process, AngularRenderer, Config};
+use mdbook_renderer::RenderContext;
 
 fn main() -> Result<()> {
 	init_logger();

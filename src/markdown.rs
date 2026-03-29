@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context;
 use handlebars::Handlebars;
-use mdbook::book::Chapter;
+use mdbook_renderer::book::Chapter;
 use pathdiff::diff_paths;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd};
 use pulldown_cmark_to_cmark::cmark as markdown_to_string;
@@ -298,7 +298,10 @@ impl<'a> CodeBlockCollector<'a, '_> {
 				match self.handlebars.render("playground", &data) {
 					Ok(rendered) => {
 						// println!("got here, {rendered}");
-						ProcessedEvent::single(Event::Html(rendered.into()))
+						ProcessedEvent::multiple(vec![
+							Event::HardBreak,
+							Event::Html(rendered.into()),
+						])
 					}
 					Err(error) => {
 						self.error(error);

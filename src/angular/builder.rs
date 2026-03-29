@@ -5,7 +5,7 @@ mod utils;
 mod writer;
 
 use log::warn;
-use mdbook::renderer::RenderContext;
+use mdbook_renderer::RenderContext;
 
 use crate::{Builder, ChapterWithCodeBlocks, Config, Result};
 
@@ -34,7 +34,11 @@ pub(crate) fn build(
 		}
 		#[cfg(all(unix, feature = "background"))]
 		Builder::Background => {
-			if ctx.config.get("output.html.live-reload-endpoint").is_some() {
+			if ctx
+				.config
+				.get::<String>("output.html.live-reload-endpoint")
+				.is_ok()
+			{
 				self::background::build(config, chapters)
 			} else {
 				warn!("The background option is ignored for commands that don't watch");

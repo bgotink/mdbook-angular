@@ -27,7 +27,7 @@ pub const MDBOOK_ANGULAR_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// This crate can be used with any mdbook version that are semver compatible
 /// with this expected version.
-pub const EXPECTED_MDBOOK_VERSION: &str = mdbook::MDBOOK_VERSION;
+pub const EXPECTED_MDBOOK_VERSION: &str = mdbook_renderer::MDBOOK_VERSION;
 
 use std::{env, fs};
 
@@ -39,10 +39,8 @@ use log::debug;
 use log::warn;
 use markdown::process_markdown;
 use markdown::ChapterWithCodeBlocks;
-use mdbook::{
-	renderer::{HtmlHandlebars, RenderContext},
-	BookItem, Renderer,
-};
+use mdbook_html::HtmlHandlebars;
+use mdbook_renderer::{RenderContext, Renderer};
 
 fn validate_version(ctx: &RenderContext) -> Result<()> {
 	let req = semver::VersionReq::parse(EXPECTED_MDBOOK_VERSION).unwrap();
@@ -93,22 +91,20 @@ impl AngularRenderer {
 		let mut chapters_with_codeblocks = Vec::new();
 		let mut result: Result<()> = Ok(());
 
-		ctx.book.for_each_mut(|item| {
+		ctx.book.for_each_chapter_mut(|chapter| {
 			if result.is_err() {
 				return;
 			}
 
-			if let BookItem::Chapter(chapter) = item {
-				debug!("Processing chapter {}", &chapter.name);
-				match process_markdown(&config, chapter) {
-					Ok(processed) => {
-						debug!("Processed chapter {}", &chapter.name);
-						if let Some(processed) = processed {
-							chapters_with_codeblocks.push(processed);
-						}
+			debug!("Processing chapter {}", &chapter.name);
+			match process_markdown(&config, chapter) {
+				Ok(processed) => {
+					debug!("Processed chapter {}", &chapter.name);
+					if let Some(processed) = processed {
+						chapters_with_codeblocks.push(processed);
 					}
-					Err(error) => result = Err(error),
 				}
+				Err(error) => result = Err(error),
 			}
 		});
 

@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Result;
-use assert_cmd::cargo::cargo_bin;
+use assert_cmd::cargo;
 use copy_dir::copy_dir;
 use select::{document::Document, predicate::*};
 use tempfile::TempDir;
@@ -30,10 +30,12 @@ impl Fixture {
 	}
 
 	pub fn run(env: Option<HashMap<String, String>>) -> Fixture {
-		let temp_dir = tempfile::Builder::new()
+		let mut temp_dir = tempfile::Builder::new()
 			.prefix("mdbook-angular-tests")
 			.tempdir()
 			.expect("failed to create temporary directory");
+		println!("Fixture directory {:?}", temp_dir.path());
+		temp_dir.disable_cleanup(true);
 
 		let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixture");
 
@@ -59,7 +61,7 @@ impl Fixture {
 			.env_remove("RUST_LOG")
 			.env(
 				"MDBOOK_OUTPUT__ANGULAR__COMMAND",
-				cargo_bin("mdbook-angular"),
+				cargo::cargo_bin!("mdbook-angular"),
 			)
 			.current_dir(&temp_dir)
 			.stdin(Stdio::null())
@@ -77,6 +79,7 @@ impl Fixture {
 			panic!("mdbook build failed");
 		}
 
+		temp_dir.disable_cleanup(false);
 		Fixture(temp_dir)
 	}
 
@@ -123,7 +126,12 @@ impl Chapter {
 		for code in self.0.find(Name("pre").child(Name("code"))) {
 			assert_eq!(
 				value,
-				code.parent().unwrap().parent().unwrap().is(Name("details"))
+				code.parent().unwrap().parent().unwrap().is(Name("details")),
+				"Parent name {} {} \"details\"? ({0} > {} > {})",
+				code.parent().unwrap().parent().unwrap().name().unwrap(),
+				if value { "==" } else { "!=" },
+				code.parent().unwrap().name().unwrap(),
+				code.name().unwrap(),
 			);
 		}
 	}

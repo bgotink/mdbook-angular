@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use mdbook::renderer::RenderContext;
+use mdbook_renderer::RenderContext;
 use serde::Deserialize;
 use toml::value::Table;
 
@@ -32,7 +32,7 @@ pub enum Builder {
 	Slow,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct DeConfig {
 	#[allow(unused)] // the command option is defined by mdbook
@@ -122,9 +122,9 @@ impl Config {
 	/// the book contains an invalid configuration.
 	pub fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
 		let root = root.as_ref();
-		let mut cfg =
-			mdbook::Config::from_disk(root.join("book.toml")).context("Error reading book.toml")?;
-		cfg.update_from_env();
+		let mut cfg = mdbook_renderer::config::Config::from_disk(root.join("book.toml"))
+			.context("Error reading book.toml")?;
+		cfg.update_from_env()?;
 
 		Self::from_config(
 			&cfg,
@@ -143,19 +143,24 @@ impl Config {
 		Self::from_config(&ctx.config, &ctx.root, ctx.destination.clone())
 	}
 
-	fn from_config(config: &mdbook::Config, root: &Path, destination: PathBuf) -> Result<Self> {
+	fn from_config(
+		config: &mdbook_renderer::config::Config,
+		root: &Path,
+		destination: PathBuf,
+	) -> Result<Self> {
 		let angular_renderer_config = config
-			.get_renderer("angular")
-			.map_or_else(Default::default, ToOwned::to_owned);
-		let de_config: DeConfig = toml::Value::from(angular_renderer_config)
-			.try_into()
-			.context("Failed to parse mdbook-angular configuration")?;
+			.get::<DeConfig>("output.angular")
+			.context("Failed to parse mdbook-angular configuration")?
+			.unwrap_or_default();
 
 		let book_source_folder = root.join(&config.book.src);
 		let book_theme_folder = book_source_folder.join("../theme");
 
-		let angular_root_folder =
-			PathBuf::from(de_config.workdir.unwrap_or("mdbook_angular".to_owned()));
+		let angular_root_folder = PathBuf::from(
+			angular_renderer_config
+				.workdir
+				.unwrap_or("mdbook_angular".to_owned()),
+		);
 		let angular_root_folder = if angular_root_folder.is_absolute() {
 			angular_root_folder
 		} else {
@@ -164,8 +169,8 @@ impl Config {
 
 		let target_folder = destination;
 
-		let zoneless = de_config.zoneless.unwrap_or(false);
-		let mut polyfills = de_config.polyfills.unwrap_or_default();
+		let zoneless = angular_renderer_config.zoneless.unwrap_or(false);
+		let mut polyfills = angular_renderer_config.polyfills.unwrap_or_default();
 
 		let zone_polyfill = "zone.js".to_owned();
 		let has_zone_polyfill = polyfills.contains(&zone_polyfill);
@@ -179,16 +184,20 @@ impl Config {
 		}
 
 		Ok(Config {
-			builder: de_config.builder,
-			collapsed: de_config.collapsed.unwrap_or(false),
-			playgrounds: de_config.playgrounds.unwrap_or(true),
-			tsconfig: de_config.tsconfig.map(|tsconfig| root.join(tsconfig)),
-			inline_style_language: de_config.inline_style_language.unwrap_or("css".to_owned()),
-			optimize: de_config.optimize.unwrap_or(false),
+			builder: angular_renderer_config.builder,
+			collapsed: angular_renderer_config.collapsed.unwrap_or(false),
+			playgrounds: angular_renderer_config.playgrounds.unwrap_or(true),
+			tsconfig: angular_renderer_config
+				.tsconfig
+				.map(|tsconfig| root.join(tsconfig)),
+			inline_style_language: angular_renderer_config
+				.inline_style_language
+				.unwrap_or("css".to_owned()),
+			optimize: angular_renderer_config.optimize.unwrap_or(false),
 			zoneless,
 			polyfills,
 
-			html: de_config.html,
+			html: angular_renderer_config.html,
 
 			book_source_folder,
 			book_theme_folder,
