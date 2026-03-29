@@ -1288,7 +1288,7 @@ dependencies = [
  "opener",
  "pathdiff",
  "tokio",
- "toml 0.9.12+spec-1.1.0",
+ "toml",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -1313,7 +1313,7 @@ dependencies = [
  "mdbook-renderer",
  "once_cell",
  "pathdiff",
- "pulldown-cmark 0.10.3",
+ "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "regex",
  "select",
@@ -1322,7 +1322,7 @@ dependencies = [
  "serde_json",
  "swc_core",
  "tempfile",
- "toml 0.5.11",
+ "toml",
 ]
 
 [[package]]
@@ -1335,7 +1335,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "toml 0.9.12+spec-1.1.0",
+ "toml",
  "tracing",
 ]
 
@@ -1358,7 +1358,7 @@ dependencies = [
  "serde_json",
  "shlex",
  "tempfile",
- "toml 0.9.12+spec-1.1.0",
+ "toml",
  "topological-sort",
  "tracing",
 ]
@@ -1380,7 +1380,7 @@ dependencies = [
  "mdbook-core",
  "mdbook-markdown",
  "mdbook-renderer",
- "pulldown-cmark 0.13.3",
+ "pulldown-cmark",
  "regex",
  "serde",
  "serde_json",
@@ -1394,7 +1394,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07c41bf35212f5d8b83e543aa6a4887dc5709c8489c5fb9ed00f1b51ce1a2cc6"
 dependencies = [
- "pulldown-cmark 0.13.3",
+ "pulldown-cmark",
  "regex",
  "tracing",
 ]
@@ -1432,7 +1432,7 @@ dependencies = [
  "anyhow",
  "mdbook-core",
  "memchr",
- "pulldown-cmark 0.13.3",
+ "pulldown-cmark",
  "serde",
  "tracing",
 ]
@@ -1891,17 +1891,6 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76979bea66e7875e7509c4ec5300112b316af87fa7a252ca91c448b32dfe3993"
-dependencies = [
- "bitflags 2.10.0",
- "memchr",
- "unicase",
-]
-
-[[package]]
-name = "pulldown-cmark"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c3a14896dfa883796f1cb410461aef38810ea05f2b2c33c5aded3649095fdad"
@@ -1920,11 +1909,11 @@ checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulldown-cmark-to-cmark"
-version = "14.0.1"
+version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03ac1dab098faca0c377449f5dbe98a222a3f6d67089c2e308bd3c7076cd37bd"
+checksum = "50793def1b900256624a709439404384204a5dc3a6ec580281bfaac35e882e90"
 dependencies = [
- "pulldown-cmark 0.10.3",
+ "pulldown-cmark",
 ]
 
 [[package]]
@@ -2377,9 +2366,9 @@ dependencies = [
 
 [[package]]
 name = "swc_common"
-version = "18.0.1"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1c06698254e9b47daaf9bbb062af489a350bd8d10dfaab0cabbd32d46cec69d"
+checksum = "623a4ee8bb19d87de6fc781e44e1696af20136d1c1eabf9f3712ff1fb50b6189"
 dependencies = [
  "anyhow",
  "ast_node",
@@ -2402,9 +2391,9 @@ dependencies = [
 
 [[package]]
 name = "swc_core"
-version = "55.0.2"
+version = "59.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "399bda66a590c521f3371a67d7a0ef579b149fd045691105dfd63bc6cfbfafd2"
+checksum = "8acca6d8b73f36672a9b865faad33c75fc15875798c8f50f1583e11b1661d9af"
 dependencies = [
  "swc_allocator",
  "swc_atoms",
@@ -2417,9 +2406,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_ast"
-version = "20.0.0"
+version = "21.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4682d975a3b4ea33f351e7938db4db41f757d9abe537af4780611ef006531698"
+checksum = "27111582629a1cc116f9cffa6bfa501e6c849e0e66fafdf78cd404dce919117d"
 dependencies = [
  "bitflags 2.10.0",
  "is-macro",
@@ -2436,9 +2425,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_parser"
-version = "33.0.0"
+version = "36.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cb866d9ca2df54daa4a460bdd105cd641d780f0578928cb1f7f4e54574bb2bb"
+checksum = "0c4c7846e4c9ee7bb52e1958b5fe7a924088451cf699e01e7203d6f5210b055e"
 dependencies = [
  "bitflags 2.10.0",
  "either",
@@ -2456,9 +2445,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_transforms_base"
-version = "36.0.1"
+version = "39.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdf93abf3dc6d2b21a2a29c62b0197cd270b6105a483236ecba91993f895204e"
+checksum = "5d4fb6ec9ec1d782104996b86119fb775c08073ce4ace8e90b3c27b75b1c0812"
 dependencies = [
  "better_scoped_tls",
  "indexmap",
@@ -2478,9 +2467,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_utils"
-version = "26.0.1"
+version = "27.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3669c1d92ba315caff5a80df76141367acf61b2d846231a1960e25be65a20fbd"
+checksum = "5c91e3ed13767ac74670e9cc9895d8c3502a9086fe69fe8a23295da08e6f7e02"
 dependencies = [
  "dragonbox_ecma",
  "indexmap",
@@ -2497,9 +2486,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_visit"
-version = "20.0.0"
+version = "21.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e971a258717db3dc8939c38410d8b8cb8126f1b05b9758672daa7cae3e0248c2"
+checksum = "7c1b3a04c999c14f09d81c959f8a84f71d594f2ad2456470eb38d78532e82dda"
 dependencies = [
  "new_debug_unreachable",
  "num-bigint",
@@ -2709,15 +2698,6 @@ dependencies = [
  "futures-sink",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "toml"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
-dependencies = [
- "serde",
 ]
 
 [[package]]

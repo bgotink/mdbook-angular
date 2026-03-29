@@ -37,14 +37,37 @@ pub(crate) struct PlaygroundInputConfig {
 	default_: Option<Value>,
 }
 
-pub(super) trait PlaygroundInputConfigExt {
-	fn extend(self, config: PlaygroundInputConfig) -> PlaygroundInputConfig;
-
+pub(super) trait ReadonlyPlaygroundInputConfigExt {
 	fn as_boolean(&self) -> Option<bool>;
-	fn into_number(self) -> Option<serde_json::Number>;
-	// fn into_string(self) -> Option<String>;
 
 	fn get_default(&self) -> Option<&Value>;
+}
+
+pub(super) trait PlaygroundInputConfigExt: ReadonlyPlaygroundInputConfigExt {
+	fn extend(self, config: PlaygroundInputConfig) -> PlaygroundInputConfig;
+
+	fn into_number(self) -> Option<serde_json::Number>;
+}
+
+impl ReadonlyPlaygroundInputConfigExt for PlaygroundInputConfig {
+	fn as_boolean(&self) -> Option<bool> {
+		if let Some(default_) = &self.default_ {
+			match default_ {
+				Value::Bool(value) => Some(*value),
+				Value::String(value) => Some(!value.is_empty()),
+				Value::Number(value) => Some(value.as_f64().unwrap_or(0.0) != 0.0),
+				Value::Null => Some(false),
+				Value::Array(_) | Value::Object(_) => Some(true),
+			}
+		} else {
+			None
+		}
+	}
+
+	#[inline]
+	fn get_default(&self) -> Option<&Value> {
+		self.default_.as_ref()
+	}
 }
 
 impl PlaygroundInputConfigExt for PlaygroundInputConfig {
@@ -60,20 +83,6 @@ impl PlaygroundInputConfigExt for PlaygroundInputConfig {
 		}
 	}
 
-	fn as_boolean(&self) -> Option<bool> {
-		if let Some(default_) = &self.default_ {
-			match default_ {
-				Value::Bool(value) => Some(*value),
-				Value::String(value) => Some(!value.is_empty()),
-				Value::Number(value) => Some(value.as_f64().unwrap_or(0.0) != 0.0),
-				Value::Null => Some(false),
-				Value::Array(_) | Value::Object(_) => Some(true),
-			}
-		} else {
-			None
-		}
-	}
-
 	fn into_number(self) -> Option<serde_json::Number> {
 		if let Some(Value::Number(value)) = self.default_ {
 			Some(value)
@@ -81,18 +90,18 @@ impl PlaygroundInputConfigExt for PlaygroundInputConfig {
 			None
 		}
 	}
+}
 
-	// fn into_string(self) -> Option<String> {
-	// 	if let Some(Value::String(value)) = self.default_ {
-	// 		Some(value)
-	// 	} else {
-	// 		None
-	// 	}
-	// }
+impl ReadonlyPlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
+	#[inline]
+	fn as_boolean(&self) -> Option<bool> {
+		self.as_ref()
+			.and_then(ReadonlyPlaygroundInputConfigExt::as_boolean)
+	}
 
 	#[inline]
 	fn get_default(&self) -> Option<&Value> {
-		self.default_.as_ref()
+		self.as_ref().and_then(PlaygroundInputConfig::get_default)
 	}
 }
 
@@ -107,23 +116,20 @@ impl PlaygroundInputConfigExt for Option<PlaygroundInputConfig> {
 	}
 
 	#[inline]
-	fn as_boolean(&self) -> Option<bool> {
-		self.as_ref().and_then(PlaygroundInputConfigExt::as_boolean)
-	}
-
-	#[inline]
 	fn into_number(self) -> Option<serde_json::Number> {
 		self.and_then(PlaygroundInputConfigExt::into_number)
 	}
+}
 
-	// #[inline]
-	// fn into_string(self) -> Option<String> {
-	// 	self.and_then(PlaygroundInputConfigExt::into_string)
-	// }
+impl ReadonlyPlaygroundInputConfigExt for Option<&PlaygroundInputConfig> {
+	#[inline]
+	fn as_boolean(&self) -> Option<bool> {
+		self.and_then(ReadonlyPlaygroundInputConfigExt::as_boolean)
+	}
 
 	#[inline]
 	fn get_default(&self) -> Option<&Value> {
-		self.as_ref().and_then(PlaygroundInputConfig::get_default)
+		self.and_then(PlaygroundInputConfig::get_default)
 	}
 }
 

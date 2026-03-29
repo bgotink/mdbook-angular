@@ -190,7 +190,7 @@ impl<'a> CodeBlockCollector<'a, '_> {
 					]);
 				};
 
-				return self.insert_code_block(None, None, language, &code, &Some(&code));
+				return self.insert_code_block(None, None, language, &code, Some(&code));
 			}
 
 			self.current_code = Some((language, code));
@@ -257,7 +257,7 @@ impl<'a> CodeBlockCollector<'a, '_> {
 				reexport_path.as_deref(),
 				flags.join(","),
 				&contents,
-				&None,
+				None,
 			));
 
 			let end = match_.end();
@@ -277,7 +277,7 @@ impl<'a> CodeBlockCollector<'a, '_> {
 		reexport_path: Option<&Path>,
 		language: L,
 		code: C,
-		code_to_print: &Option<C>,
+		code_to_print: Option<&str>,
 	) -> ProcessedEvent<'b> {
 		let index = self.code_blocks.len();
 		let language = language.as_ref();

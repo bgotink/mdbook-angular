@@ -25,7 +25,7 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 	reexport_path: Option<&Path>,
 	language: L,
 	code: C,
-	code_to_print: &Option<C>,
+	code_to_print: Option<&str>,
 ) -> Result<CodeBlock> {
 	let code = code.as_ref();
 	let flags = get_flags(language.as_ref());
@@ -58,7 +58,7 @@ pub(crate) fn to_codeblock<L: AsRef<str>, C: AsRef<str>>(
 		tag,
 	} = parse_codeblock(
 		code,
-		code_to_print.as_ref().map(AsRef::as_ref),
+		code_to_print,
 		allow_playground,
 		index,
 		class_name,

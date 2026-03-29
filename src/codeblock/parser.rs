@@ -147,11 +147,9 @@ impl CodeBlockVisitor {
 			return Ok(());
 		};
 
-		if self.tag.is_some() {
+		if let Some(tag) = &self.tag {
 			return Err(Error::msg(format!(
-				"File contains more than one exported component class: {} and {}",
-				self.tag.as_ref().unwrap(),
-				name
+				"File contains more than one exported component class: {tag} and {name}"
 			)));
 		}
 

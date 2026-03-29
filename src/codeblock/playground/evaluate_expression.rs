@@ -1,7 +1,10 @@
 use serde_json::{Number, Value};
 use swc_core::ecma::ast;
 
-use super::{PlaygroundInputConfig, PlaygroundInputConfigExt, PlaygroundInputType};
+use super::{
+	PlaygroundInputConfig, PlaygroundInputConfigExt, PlaygroundInputType,
+	ReadonlyPlaygroundInputConfigExt,
+};
 
 fn apply_unary(
 	op: ast::UnaryOp,
@@ -47,29 +50,22 @@ fn apply_unary(
 #[allow(clippy::too_many_lines)]
 fn apply_binary(
 	op: ast::BinaryOp,
-	left: &Option<PlaygroundInputConfig>,
-	right: &Option<PlaygroundInputConfig>,
+	left: Option<&PlaygroundInputConfig>,
+	right: Option<&PlaygroundInputConfig>,
 ) -> Option<PlaygroundInputConfig> {
-	fn values<'a>(
-		left: &'a Option<PlaygroundInputConfig>,
-		right: &'a Option<PlaygroundInputConfig>,
-	) -> Option<(&'a Value, &'a Value)> {
-		Option::zip(left.get_default(), right.get_default())
-	}
-
 	match op {
 		ast::BinaryOp::NotEq
 		| ast::BinaryOp::In
 		| ast::BinaryOp::InstanceOf
 		| ast::BinaryOp::EqEq => Some(PlaygroundInputConfig::boolean()),
 
-		ast::BinaryOp::EqEqEq => Some(if let Some((left, right)) = values(left, right) {
-			PlaygroundInputConfig::from_default(left.eq(right))
+		ast::BinaryOp::EqEqEq => Some(if let (Some(left), Some(right)) = (left, right) {
+			PlaygroundInputConfig::from_default(left.get_default().eq(&right.get_default()))
 		} else {
 			PlaygroundInputConfig::boolean()
 		}),
-		ast::BinaryOp::NotEqEq => Some(if let Some((left, right)) = values(left, right) {
-			PlaygroundInputConfig::from_default(!left.eq(right))
+		ast::BinaryOp::NotEqEq => Some(if let (Some(left), Some(right)) = (left, right) {
+			PlaygroundInputConfig::from_default(!left.get_default().eq(&right.get_default()))
 		} else {
 			PlaygroundInputConfig::boolean()
 		}),
@@ -97,33 +93,35 @@ fn apply_binary(
 			PlaygroundInputConfig::boolean()
 		}),
 
-		ast::BinaryOp::BitAnd => {
-			i64_i64_to_i64_operator(values(left, right), std::ops::BitAnd::bitand)
-		}
-		ast::BinaryOp::BitOr => {
-			i64_i64_to_i64_operator(values(left, right), std::ops::BitOr::bitor)
-		}
-		ast::BinaryOp::BitXor => {
-			i64_i64_to_i64_operator(values(left, right), std::ops::BitXor::bitxor)
-		}
-		ast::BinaryOp::LShift => i64_i64_to_i64_operator(values(left, right), std::ops::Shl::shl),
-		ast::BinaryOp::RShift => i64_i64_to_i64_operator(values(left, right), std::ops::Shr::shr),
+		ast::BinaryOp::BitAnd => Some(i64_i64_to_i64_operator(
+			left,
+			right,
+			std::ops::BitAnd::bitand,
+		)),
+		ast::BinaryOp::BitOr => Some(i64_i64_to_i64_operator(left, right, std::ops::BitOr::bitor)),
+		ast::BinaryOp::BitXor => Some(i64_i64_to_i64_operator(
+			left,
+			right,
+			std::ops::BitXor::bitxor,
+		)),
+		ast::BinaryOp::LShift => Some(i64_i64_to_i64_operator(left, right, std::ops::Shl::shl)),
+		ast::BinaryOp::RShift => Some(i64_i64_to_i64_operator(left, right, std::ops::Shr::shr)),
 		ast::BinaryOp::ZeroFillRShift => Some(PlaygroundInputConfig::number()),
 
-		ast::BinaryOp::Exp => f64_f64_to_f64_operator(values(left, right), f64::powf),
-		ast::BinaryOp::Mod => f64_f64_to_f64_operator(values(left, right), std::ops::Rem::rem),
-		ast::BinaryOp::Mul => f64_f64_to_f64_operator(values(left, right), std::ops::Mul::mul),
-		ast::BinaryOp::Div => f64_f64_to_f64_operator(values(left, right), std::ops::Div::div),
-		ast::BinaryOp::Sub => f64_f64_to_f64_operator(values(left, right), std::ops::Sub::sub),
+		ast::BinaryOp::Exp => Some(f64_f64_to_f64_operator(left, right, f64::powf)),
+		ast::BinaryOp::Mod => Some(f64_f64_to_f64_operator(left, right, std::ops::Rem::rem)),
+		ast::BinaryOp::Mul => Some(f64_f64_to_f64_operator(left, right, std::ops::Mul::mul)),
+		ast::BinaryOp::Div => Some(f64_f64_to_f64_operator(left, right, std::ops::Div::div)),
+		ast::BinaryOp::Sub => Some(f64_f64_to_f64_operator(left, right, std::ops::Sub::sub)),
 
-		ast::BinaryOp::Gt => f64_f64_to_bool_operator(values(left, right), |a, b| a > b),
-		ast::BinaryOp::GtEq => f64_f64_to_bool_operator(values(left, right), |a, b| a >= b),
-		ast::BinaryOp::Lt => f64_f64_to_bool_operator(values(left, right), |a, b| a < b),
-		ast::BinaryOp::LtEq => f64_f64_to_bool_operator(values(left, right), |a, b| a <= b),
+		ast::BinaryOp::Gt => Some(f64_f64_to_bool_operator(left, right, |a, b| a > b)),
+		ast::BinaryOp::GtEq => Some(f64_f64_to_bool_operator(left, right, |a, b| a >= b)),
+		ast::BinaryOp::Lt => Some(f64_f64_to_bool_operator(left, right, |a, b| a < b)),
+		ast::BinaryOp::LtEq => Some(f64_f64_to_bool_operator(left, right, |a, b| a <= b)),
 
 		ast::BinaryOp::Add => {
 			// Oh boy
-			if let Some((left, right)) = values(left, right) {
+			if let (Some(left), Some(right)) = (left.get_default(), right.get_default()) {
 				match (left, right) {
 					(Value::String(left), Value::String(right)) => {
 						let mut result = String::with_capacity(left.len() + right.len());
@@ -172,62 +170,65 @@ fn apply_binary(
 	}
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn f64_f64_to_f64_operator<F>(
-	values: Option<(&Value, &Value)>,
+	left: Option<&PlaygroundInputConfig>,
+	right: Option<&PlaygroundInputConfig>,
 	f: F,
-) -> Option<PlaygroundInputConfig>
+) -> PlaygroundInputConfig
 where
 	F: Fn(f64, f64) -> f64,
 {
-	if let Some((Value::Number(left), Value::Number(right))) = values {
+	if let (Some(Value::Number(left)), Some(Value::Number(right))) =
+		(left.get_default(), right.get_default())
+	{
 		if let Some(value) =
 			serde_json::Number::from_f64(f(left.as_f64().unwrap(), right.as_f64().unwrap()))
 		{
-			Some(PlaygroundInputConfig::from_default(value))
+			PlaygroundInputConfig::from_default(value)
 		} else {
-			Some(PlaygroundInputConfig::number())
+			PlaygroundInputConfig::number()
 		}
 	} else {
-		Some(PlaygroundInputConfig::number())
+		PlaygroundInputConfig::number()
 	}
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn f64_f64_to_bool_operator<F>(
-	values: Option<(&Value, &Value)>,
+	left: Option<&PlaygroundInputConfig>,
+	right: Option<&PlaygroundInputConfig>,
 	f: F,
-) -> Option<PlaygroundInputConfig>
+) -> PlaygroundInputConfig
 where
 	F: Fn(f64, f64) -> bool,
 {
-	if let Some((Value::Number(left), Value::Number(right))) = values {
-		Some(PlaygroundInputConfig::from_default(f(
-			left.as_f64().unwrap(),
-			right.as_f64().unwrap(),
-		)))
+	if let (Some(Value::Number(left)), Some(Value::Number(right))) =
+		(left.get_default(), right.get_default())
+	{
+		PlaygroundInputConfig::from_default(f(left.as_f64().unwrap(), right.as_f64().unwrap()))
 	} else {
-		Some(PlaygroundInputConfig::boolean())
+		PlaygroundInputConfig::boolean()
 	}
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn i64_i64_to_i64_operator<F>(
-	values: Option<(&Value, &Value)>,
+	left: Option<&PlaygroundInputConfig>,
+	right: Option<&PlaygroundInputConfig>,
 	f: F,
-) -> Option<PlaygroundInputConfig>
+) -> PlaygroundInputConfig
 where
 	F: Fn(i64, i64) -> i64,
 {
-	if let Some((Value::Number(left), Value::Number(right))) = values {
+	if let (Some(Value::Number(left)), Some(Value::Number(right))) =
+		(left.get_default(), right.get_default())
+	{
 		if let Some(left) = left.as_i64() {
 			if let Some(right) = right.as_i64() {
-				return Some(PlaygroundInputConfig::from_default(f(left, right)));
+				return PlaygroundInputConfig::from_default(f(left, right));
 			}
 		}
 	}
 
-	Some(PlaygroundInputConfig::number())
+	PlaygroundInputConfig::number()
 }
 
 pub(super) fn ts_type_to_input_type<T: AsRef<ast::TsType>>(
@@ -297,7 +298,7 @@ pub(super) fn evaluate<T: AsRef<ast::Expr>>(expr: T) -> Option<PlaygroundInputCo
 
 		ast::Expr::Bin(ast::BinExpr {
 			op, left, right, ..
-		}) => apply_binary(*op, &evaluate(left), &evaluate(right)),
+		}) => apply_binary(*op, evaluate(left).as_ref(), evaluate(right).as_ref()),
 
 		_ => None,
 	}

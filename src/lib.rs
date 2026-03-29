@@ -6,7 +6,7 @@
 	clippy::panic,
 	clippy::semicolon_inside_block,
 	clippy::str_to_string,
-	clippy::string_to_string,
+	clippy::implicit_clone,
 	clippy::unnecessary_self_imports,
 	clippy::use_debug
 )]
