@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use mdbook_renderer::RenderContext;
 use serde::Deserialize;
 use toml::value::Table;

@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use serde_json::json;
 
-use crate::{codeblock::CodeBlock, Config, Context, Result};
+use crate::{Config, Context, Result, markdown::CollectedCodeBlock};
 
 pub(super) struct Writer<'a> {
 	changed_only: bool,
@@ -45,7 +45,7 @@ impl Writer<'_> {
 		root: P,
 		index: usize,
 		chapter_path: &Path,
-		code_blocks: Vec<CodeBlock>,
+		code_blocks: Vec<CollectedCodeBlock>,
 	) -> Result<()> {
 		let root = root.as_ref();
 		let project_folder = format!("code_{index}");
@@ -85,7 +85,8 @@ impl Writer<'_> {
       );
 		}
 
-		for (code_block_index, code_block) in code_blocks.into_iter().enumerate() {
+		for code_block in code_blocks {
+			let code_block_index = code_block.index;
 			self.write(
 				absolute_project_folder.join(format!("codeblock_{code_block_index}.ts")),
 				&code_block.code_to_run,
@@ -97,13 +98,13 @@ impl Writer<'_> {
 					import {{{} as CodeBlock_{code_block_index}}} from './codeblock_{code_block_index}.js';\n\
 					applications.push(bootstrapApplication(CodeBlock_{code_block_index}, {{providers: makeProviders(CodeBlock_{code_block_index})}}));\n\
 				",
-				&code_block.class_name
+				code_block.class_name
 			));
 		}
 
 		let script_basename = project_folder.clone();
 
-		let angular_main = format!("./{}/{}", &project_folder, &script_basename);
+		let angular_main = format!("./{project_folder}/{script_basename}");
 		self.write(
 			root.join(format!("{angular_main}.ts")),
 			&main_script.join("\n"),

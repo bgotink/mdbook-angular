@@ -218,14 +218,16 @@ fn i64_i64_to_i64_operator<F>(
 where
 	F: Fn(i64, i64) -> i64,
 {
-	if let (Some(Value::Number(left)), Some(Value::Number(right))) =
-		(left.get_default(), right.get_default())
+	if let Some(left) = left
+		.get_default()
+		.and_then(Value::as_number)
+		.and_then(Number::as_i64)
+		&& let Some(right) = right
+			.get_default()
+			.and_then(Value::as_number)
+			.and_then(Number::as_i64)
 	{
-		if let Some(left) = left.as_i64() {
-			if let Some(right) = right.as_i64() {
-				return PlaygroundInputConfig::from_default(f(left, right));
-			}
-		}
+		return PlaygroundInputConfig::from_default(f(left, right));
 	}
 
 	PlaygroundInputConfig::number()

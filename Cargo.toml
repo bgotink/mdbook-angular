@@ -1,7 +1,7 @@
 [package]
 name = "mdbook-angular"
 version = "0.5.0"
-edition = "2021"
+edition = "2024"
 authors = ["Bram Gotink <bram@bram.dev>"]
 license = "EUPL-1.2"
 description = "mdbook renderer to run angular code samples"

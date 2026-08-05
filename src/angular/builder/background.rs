@@ -7,7 +7,7 @@ pub(crate) use utils::stop as stop_background_process;
 
 use crate::{ChapterWithCodeBlocks, Config, Result};
 
-use super::{default::write_angular_workspace, Writer};
+use super::{Writer, default::write_angular_workspace};
 
 pub(super) fn build(config: &Config, chapters: Vec<ChapterWithCodeBlocks>) -> Result<()> {
 	let root = &config.angular_root_folder;

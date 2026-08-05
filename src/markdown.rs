@@ -19,9 +19,9 @@ use regex::Regex;
 use serde::Serialize;
 
 use crate::{
-	codeblock::{is_angular_codeblock, to_codeblock, CodeBlock},
-	utils::path_to_root,
 	Config, Error, Result,
+	codeblock::{CodeBlock, is_angular_codeblock, playground::ExtraValues, to_codeblock},
+	utils::path_to_root,
 };
 
 #[derive(Serialize)]
@@ -31,6 +31,8 @@ struct CodeBlockTemplateInput {
 	description: Option<String>,
 
 	value: String,
+
+	extra: ExtraValues,
 }
 
 #[derive(Serialize)]
@@ -38,6 +40,8 @@ struct CodeBlockTemplateAction {
 	button: String,
 
 	description: String,
+
+	extra: ExtraValues,
 }
 
 #[derive(Serialize)]
@@ -58,77 +62,101 @@ struct CodeBlockTemplateData {
 	flags: CodeBlockTemplateFlags,
 }
 
-impl CodeBlockTemplateData {
-	fn new(index: usize, code_block: &CodeBlock) -> Self {
-		let mut flags = CodeBlockTemplateFlags { collapsed: false };
-		let mut code = None;
+fn from_code_block(
+	index: usize,
+	code_block: CodeBlock,
+) -> (CodeBlockTemplateData, CollectedCodeBlock) {
+	let mut flags = CodeBlockTemplateFlags { collapsed: false };
+	let mut code = None;
 
-		if let Some(printed_code) = &code_block.code_to_print {
-			code = Some(Rc::deref(&printed_code.code).clone());
-			flags.collapsed = printed_code.collapsed;
+	if let Some(printed_code) = code_block.code_to_print {
+		code = Some(Rc::deref(&printed_code.code).clone());
+		flags.collapsed = printed_code.collapsed;
+	}
+
+	let playground = if code_block.insert {
+		format!("<{0}></{0}>\n", code_block.tag)
+	} else {
+		String::new()
+	};
+
+	let mut inputs = Vec::new();
+	let mut actions = Vec::new();
+	let mut has_playground = false;
+
+	if let Some(playground) = code_block.playground {
+		has_playground = true;
+
+		for input in playground.inputs {
+			let value = format!(
+				"<mdbook-angular-input name=\"{}\" index=\"{}\">{}</mdbook-angular-input>",
+				input.name,
+				index,
+				serde_json::to_string(&input.config)
+					.unwrap()
+					.replace('<', "&lt;")
+			);
+
+			inputs.push(CodeBlockTemplateInput {
+				name: input.name,
+				description: input.description,
+				extra: input.extra.unwrap_or_default(),
+				value,
+			});
 		}
 
-		let playground = if code_block.insert {
-			format!("<{0}></{0}>\n", code_block.tag)
-		} else {
-			String::new()
-		};
+		for action in playground.actions {
+			let button = format!(
+				"<mdbook-angular-action name=\"{}\" index=\"{}\"></mdbook-angular-action>",
+				action.name, index
+			);
 
-		let mut inputs = Vec::new();
-		let mut actions = Vec::new();
-
-		if let Some(playground) = &code_block.playground {
-			for input in &playground.inputs {
-				let value = format!(
-					"<mdbook-angular-input name=\"{}\" index=\"{}\">{}</mdbook-angular-input>",
-					input.name,
-					index,
-					serde_json::to_string(&input.config)
-						.unwrap()
-						.replace('<', "&lt;")
-				);
-
-				inputs.push(CodeBlockTemplateInput {
-					name: input.name.clone(),
-					description: input.description.clone(),
-					value,
-				});
-			}
-
-			for action in &playground.actions {
-				let button = format!(
-					"<mdbook-angular-action name=\"{}\" index=\"{}\"></mdbook-angular-action>",
-					action.name, index
-				);
-
-				actions.push(CodeBlockTemplateAction {
-					button,
-					description: action.description.clone(),
-				});
-			}
+			actions.push(CodeBlockTemplateAction {
+				button,
+				description: action.description,
+				extra: action.extra.unwrap_or_default(),
+			});
 		}
+	}
 
-		Self {
+	(
+		CodeBlockTemplateData {
 			playground,
 			code,
 			inputs,
 			actions,
 			flags,
-		}
-	}
+		},
+		CollectedCodeBlock {
+			index,
+			class_name: code_block.class_name,
+			code_to_run: code_block.code_to_run,
+			has_playground,
+		},
+	)
 }
 
 struct CodeBlockCollector<'a, 'b> {
 	config: &'a Config,
 	chapter: &'a Chapter,
 
-	code_blocks: Vec<CodeBlock>,
+	code_blocks: Vec<CollectedCodeBlock>,
 
 	current_code: Option<(String, Option<String>)>,
 
 	error: Result<()>,
 
 	handlebars: Handlebars<'b>,
+}
+
+pub(crate) struct CollectedCodeBlock {
+	pub(crate) index: usize,
+
+	pub(crate) has_playground: bool,
+
+	pub(crate) class_name: String,
+
+	pub(crate) code_to_run: Rc<String>,
 }
 
 impl<'a> CodeBlockCollector<'a, '_> {
@@ -169,11 +197,11 @@ impl<'a> CodeBlockCollector<'a, '_> {
 			return ProcessedEvent::empty();
 		}
 
-		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
-			if is_angular_codeblock(language) {
-				self.current_code = Some((language.as_ref().into(), None));
-				return ProcessedEvent::empty();
-			}
+		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event
+			&& is_angular_codeblock(language)
+		{
+			self.current_code = Some((language.as_ref().into(), None));
+			return ProcessedEvent::empty();
 		}
 
 		if let Some((language, code)) = self.current_code.take() {
@@ -292,17 +320,14 @@ impl<'a> CodeBlockCollector<'a, '_> {
 			code_to_print,
 		) {
 			Ok(code_block) => {
-				let data = CodeBlockTemplateData::new(index, &code_block);
+				let (data, code_block) = from_code_block(index, code_block);
 				self.code_blocks.push(code_block);
 
 				match self.handlebars.render("playground", &data) {
-					Ok(rendered) => {
-						// println!("got here, {rendered}");
-						ProcessedEvent::multiple(vec![
-							Event::HardBreak,
-							Event::Html(rendered.into()),
-						])
-					}
+					Ok(rendered) => ProcessedEvent::multiple(vec![
+						Event::HardBreak,
+						Event::Html(rendered.into()),
+					]),
 					Err(error) => {
 						self.error(error);
 						ProcessedEvent::empty()
@@ -361,7 +386,7 @@ impl<'a> Iterator for ProcessedEvent<'a> {
 
 pub(crate) struct ChapterWithCodeBlocks {
 	pub(crate) source_path: PathBuf,
-	pub(crate) code_blocks: Vec<CodeBlock>,
+	pub(crate) code_blocks: Vec<CollectedCodeBlock>,
 }
 
 pub(crate) fn process_markdown(
@@ -397,10 +422,10 @@ pub(crate) fn process_markdown(
 		r#"{}<script id="load-angular" data-path={} type="module" src="{}/browser/main.js"></script>"#,
 		"\n\n",
 		serde_json::to_string(&source_path)?,
-		&ptr,
+		ptr,
 	)?;
 
-	if code_blocks.iter().any(|b| b.playground.is_some()) {
+	if code_blocks.iter().any(|b| b.has_playground) {
 		write!(
 			new_content,
 			r#"<script type="module" src="{ptr}/playground-io.min.js"></script>"#,

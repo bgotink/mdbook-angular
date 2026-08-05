@@ -11,7 +11,7 @@ use crate::{Config, Result};
 
 use self::{
 	flags::get_flags,
-	parser::{parse_codeblock, ParsedCodeBlock},
+	parser::{ParsedCodeBlock, parse_codeblock},
 };
 
 pub(crate) fn is_angular_codeblock(language: &str) -> bool {

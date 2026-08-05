@@ -37,8 +37,8 @@ pub use config::{Builder, Config};
 use angular::build;
 use log::debug;
 use log::warn;
-use markdown::process_markdown;
 use markdown::ChapterWithCodeBlocks;
+use markdown::process_markdown;
 use mdbook_html::HtmlHandlebars;
 use mdbook_renderer::{RenderContext, Renderer};
 
@@ -48,11 +48,11 @@ fn validate_version(ctx: &RenderContext) -> Result<()> {
 	if semver::Version::parse(&ctx.version).is_ok_and(|version| req.matches(&version)) {
 		Ok(())
 	} else {
-		bail!("Invalid mdbook version {}, expected {}", &ctx.version, req);
+		bail!("Invalid mdbook version {}, expected {}", ctx.version, req);
 	}
 }
 
-pub(crate) use anyhow::{bail, Context, Error, Result};
+pub(crate) use anyhow::{Context, Error, Result, bail};
 
 /// An mdbook [`Renderer`] for including live angular code samples
 pub struct AngularRenderer {}
@@ -96,10 +96,10 @@ impl AngularRenderer {
 				return;
 			}
 
-			debug!("Processing chapter {}", &chapter.name);
+			debug!("Processing chapter {}", chapter.name);
 			match process_markdown(&config, chapter) {
 				Ok(processed) => {
-					debug!("Processed chapter {}", &chapter.name);
+					debug!("Processed chapter {}", chapter.name);
 					if let Some(processed) = processed {
 						chapters_with_codeblocks.push(processed);
 					}

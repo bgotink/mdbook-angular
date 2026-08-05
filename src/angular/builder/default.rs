@@ -1,11 +1,11 @@
 use std::{fs, path::PathBuf};
 
 use pathdiff::diff_paths;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{angular::AngularWorkspace, ChapterWithCodeBlocks, Config, Error, Result};
+use crate::{ChapterWithCodeBlocks, Config, Error, Result, angular::AngularWorkspace};
 
-use super::{ng_build, utils::PROJECT_NAME, utils::TARGET_NAME, Writer};
+use super::{Writer, ng_build, utils::PROJECT_NAME, utils::TARGET_NAME};
 
 pub(super) const BUILDER_NAME: &str = "@angular/build:application";
 pub(super) const MAIN_FILENAME: &str = "load-angular.ts";
@@ -114,7 +114,7 @@ fn replace_load_angular_script_path(config: &Config, chapters: Vec<PathBuf>) -> 
 		})
 		.ok_or_else(|| Error::msg("Failed to find main file in stats.json"))?;
 
-	let main_file = format!("browser/{main_file}",);
+	let main_file = format!("browser/{main_file}");
 
 	for chapter_path in chapters {
 		let mut chapter_path = config.target_folder.join(chapter_path);

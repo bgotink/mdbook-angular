@@ -5,20 +5,20 @@ use log::debug;
 use regex::Regex;
 use swc_core::{
 	common::{
-		comments::SingleThreadedComments,
-		errors::{Handler, HANDLER},
-		source_map::SmallPos,
 		BytePos, FileName, SourceFile, Span, Spanned,
+		comments::SingleThreadedComments,
+		errors::{HANDLER, Handler},
+		source_map::SmallPos,
 	},
 	ecma::{
-		ast::{self, EsVersion},
+		ast::{self, EsVersion, Lit},
 		parser::{self, Syntax, TsSyntax},
 	},
 };
 
-use crate::{utils::swc::get_decorator, Error, Result};
+use crate::{Error, Result, utils::swc::get_decorator};
 
-use super::playground::{parse_playground, Playground};
+use super::playground::{Playground, parse_playground};
 
 static TS_EXT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\.([cm]?)ts(x?)$").unwrap());
 static START_OF_FILE: BytePos = BytePos(1);
@@ -60,10 +60,7 @@ impl CodeBlockVisitor {
 			});
 
 		if let Some(selector) = selector {
-			let selector = selector.value.as_lit().and_then(|lit| match lit {
-				ast::Lit::Str(ref selector) => Some(&selector.value),
-				_ => None,
-			});
+			let selector = selector.value.as_lit().and_then(Lit::as_str);
 
 			let Some(selector) = selector else {
 				return Err(Error::msg(format!(
@@ -71,7 +68,7 @@ impl CodeBlockVisitor {
 				)));
 			};
 
-			let Some(selector) = selector.as_str() else {
+			let Some(selector) = selector.value.as_str() else {
 				return Err(Error::msg(format!(
 					"Selector is not a valid string in class {name}"
 				)));
@@ -124,10 +121,10 @@ impl CodeBlockVisitor {
 	}
 
 	fn visit_exported_class(&mut self, name: &str, node: &ast::Class) -> Result<()> {
-		if let Some(expected_name) = &self.class_name {
-			if name.ne(expected_name) {
-				return Ok(());
-			}
+		if let Some(expected_name) = &self.class_name
+			&& name != expected_name
+		{
+			return Ok(());
 		}
 
 		debug!("Visiting class {name}");

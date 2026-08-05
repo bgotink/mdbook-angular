@@ -29,6 +29,8 @@ impl PlaygroundInputType {
 	}
 }
 
+pub(crate) type ExtraValues = serde_json::Map<String, serde_json::Value>;
+
 #[derive(Debug, PartialEq, Default, Serialize, Deserialize)]
 pub(crate) struct PlaygroundInputConfig {
 	#[serde(rename = "type", default)]
@@ -146,7 +148,7 @@ impl PlaygroundInputConfig {
 	pub(super) fn boolean() -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_: PlaygroundInputType::Boolean,
-			default_: None,
+			..Default::default()
 		}
 	}
 
@@ -154,7 +156,7 @@ impl PlaygroundInputConfig {
 	pub(super) fn number() -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_: PlaygroundInputType::Number,
-			default_: None,
+			..Default::default()
 		}
 	}
 
@@ -162,7 +164,7 @@ impl PlaygroundInputConfig {
 	pub(super) fn string() -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_: PlaygroundInputType::String,
-			default_: None,
+			..Default::default()
 		}
 	}
 
@@ -170,7 +172,7 @@ impl PlaygroundInputConfig {
 	pub(super) fn from_type(type_: PlaygroundInputType) -> PlaygroundInputConfig {
 		PlaygroundInputConfig {
 			type_,
-			default_: None,
+			..Default::default()
 		}
 	}
 
@@ -198,11 +200,13 @@ pub(crate) struct PlaygroundInput {
 	pub(crate) name: String,
 	pub(crate) description: Option<String>,
 	pub(crate) config: PlaygroundInputConfig,
+	pub(crate) extra: Option<ExtraValues>,
 }
 
 pub(crate) struct PlaygroundAction {
 	pub(crate) name: String,
 	pub(crate) description: String,
+	pub(crate) extra: Option<ExtraValues>,
 }
 
 pub(crate) struct Playground {

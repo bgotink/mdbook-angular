@@ -13,14 +13,15 @@ use std::{
 	io::{self, Read},
 	os::unix::process::CommandExt,
 	path::{Path, PathBuf},
-	process::{self, exit, Command},
+	process::{self, Command, exit},
 };
 
 use log::{debug, error, info};
 
 use crate::{
+	Config, Context, Result,
 	angular::builder::utils::{ANGULAR_CLI_CMD, PROJECT_NAME, TARGET_NAME},
-	bail, Config, Context, Result,
+	bail,
 };
 
 fn open_pid_file(

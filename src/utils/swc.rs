@@ -31,16 +31,16 @@ pub(crate) fn clean_comment(comment: &comments::Comment) -> String {
 		})
 		.collect::<VecDeque<_>>();
 
-	if let Some(first) = lines.front() {
-		if first.is_empty() {
-			lines.pop_front();
-		}
+	if let Some(first) = lines.front()
+		&& first.is_empty()
+	{
+		lines.pop_front();
 	}
 
-	if let Some(last) = lines.back() {
-		if last.is_empty() {
-			lines.pop_back();
-		}
+	if let Some(last) = lines.back()
+		&& last.is_empty()
+	{
+		lines.pop_back();
 	}
 
 	lines.into_iter().collect::<Vec<_>>().join("\n")

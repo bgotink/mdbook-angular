@@ -225,6 +225,38 @@ polyfills = []
 
 None of these settings are required, the default values are shown in the code above.
 
+### Custom Template
+
+The default template can be found in a file `src/default_template.hbs` in the source repository.
+You can provide your own template by adding a `angular-playground.hbs` file in your book's `theme` folder.
+
+Inside the template you have access to the following data:
+
+- `code` is the code to print, if the playground should show code
+- `flags` are the flags present on the code block, take not of `flags.collapsed` especially
+- `inputs` is an array of objects:
+  - `name` is the name of the input
+  - `description` is its description, possibly empty
+  - `value` is a HTML block to render an input element so the reader can change the value
+  - `extra` is extra info, see below
+- `actions` is an array of objects:
+  - `description` is its description, possibly empty
+  - `action` is a HTML block to render a button so the reader can trigger the action
+  - `extra` is extra info, see below
+
+Both actions and inputs can provide extra info. That's a JSON object provided in a comment on the action or input using the `@extra` tag.
+As example: the code block below would make `{{ extra.lorem }}` have value `ipsum` for the input named `myInput`.
+
+```ts
+class MyPlayground {
+	/**
+	 * This is the description
+	 * @extra {"lorem": "ipsum"}
+	 */
+	myInput = signal<string>('default value');
+}
+```
+
 ## Development
 
 This project requires mdbook and angular to be installed

@@ -1,8 +1,9 @@
 use swc_core::{common::comments, ecma::ast};
 
 use crate::{
-	utils::swc::{clean_comment, get_decorator},
 	Result,
+	codeblock::playground::ExtraValues,
+	utils::swc::{clean_comment, get_decorator},
 };
 
 use super::{
@@ -18,7 +19,7 @@ pub(crate) fn parse_playground<C: comments::Comments>(
 	comments: &C,
 ) -> Result<Option<Playground>> {
 	let inputs = extract_inputs(node, comments)?;
-	let actions = extract_actions(node, comments);
+	let actions = extract_actions(node, comments)?;
 
 	if actions.is_empty() && inputs.is_empty() {
 		Ok(None)
@@ -77,15 +78,45 @@ fn extract_inputs<C: comments::Comments>(
 
 		let mut description: Option<String> = None;
 		let mut config: Option<PlaygroundInputConfig> = None;
+		let mut extra: Option<ExtraValues> = None;
 
-		if let Some(comment) = get_leading_comment(comments, member) {
-			let comment = clean_comment(&comment);
+		if let Some(mut comment) = get_leading_comment(comments, member).as_deref() {
+			enum State {
+				Description,
+				Config,
+				Extra,
+			}
 
-			let mut parts = comment.splitn(2, "@input");
-			description = parts.next().map(ToString::to_string);
+			let mut state = State::Description;
 
-			if let Some(default) = parts.next() {
-				config = Some(serde_json::from_str(default)?);
+			while !comment.is_empty() {
+				let input_marker_idx = comment.find("@input").unwrap_or(usize::MAX);
+				let extra_marker_idx = comment.find("@extra").unwrap_or(usize::MAX);
+
+				let current_part;
+				let marker;
+				let marker_idx = input_marker_idx.min(extra_marker_idx);
+				if marker_idx < comment.len() {
+					(current_part, comment) = comment.split_at(marker_idx);
+					// @input and @extra are the same length, yay
+					(marker, comment) = comment.split_at(6);
+				} else {
+					current_part = comment;
+					comment = "";
+					marker = "";
+				}
+
+				match state {
+					State::Description => description = Some(current_part.to_owned()),
+					State::Config => config = Some(serde_json::from_str(current_part)?),
+					State::Extra => extra = Some(serde_json::from_str(current_part)?),
+				}
+
+				state = match marker {
+					"@input" => State::Config,
+					"@extra" => State::Extra,
+					_ => State::Description,
+				};
 			}
 		}
 
@@ -111,38 +142,41 @@ fn extract_inputs<C: comments::Comments>(
 				name,
 				description,
 				config,
+				extra,
 			});
-		} else if let Some(call) = value.as_ref().and_then(|value| value.as_call()) {
-			if call.callee.is_expr() && call.callee.as_expr().unwrap().is_ident_ref_to("input") {
-				let value = call.args.first().map(|v| &v.expr);
+		} else if let Some(call) = value.as_ref().and_then(|value| value.as_call())
+			&& call.callee.is_expr()
+			&& call.callee.as_expr().unwrap().is_ident_ref_to("input")
+		{
+			let value = call.args.first().map(|v| &v.expr);
 
-				let Some(name) = get_name_from_input_signal(call)
-					.or_else(|| to_name(key).map(ToOwned::to_owned))
-				else {
-					continue;
-				};
+			let Some(name) =
+				get_name_from_input_signal(call).or_else(|| to_name(key).map(ToOwned::to_owned))
+			else {
+				continue;
+			};
 
-				if let Some(type_) = call
-					.type_args
-					.as_ref()
-					.and_then(|type_args| type_args.params.first())
-					.and_then(ts_type_to_input_type)
-				{
-					config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
-				}
-
-				let config = config.extend(
-					value
-						.and_then(evaluate)
-						.unwrap_or(PlaygroundInputConfig::default()),
-				);
-
-				result.push(PlaygroundInput {
-					name,
-					description,
-					config,
-				});
+			if let Some(type_) = call
+				.type_args
+				.as_ref()
+				.and_then(|type_args| type_args.params.first())
+				.and_then(ts_type_to_input_type)
+			{
+				config = Some(config.extend(PlaygroundInputConfig::from_type(type_)));
 			}
+
+			let config = config.extend(
+				value
+					.and_then(evaluate)
+					.unwrap_or(PlaygroundInputConfig::default()),
+			);
+
+			result.push(PlaygroundInput {
+				name,
+				description,
+				config,
+				extra,
+			});
 		}
 	}
 
@@ -211,24 +245,33 @@ fn extract_type_from_pat(pat: &ast::Pat) -> Option<PlaygroundInputType> {
 fn extract_actions<C: comments::Comments>(
 	node: &ast::Class,
 	comments: &C,
-) -> Vec<PlaygroundAction> {
-	node.body
-		.iter()
-		.filter_map(ast::ClassMember::as_method)
-		.filter_map(|method| -> Option<PlaygroundAction> {
-			let comment = get_leading_comment(comments, method)?;
+) -> Result<Vec<PlaygroundAction>> {
+	let mut result = Vec::new();
 
-			if comment.text.contains("@action") {
-				let name = to_name(&method.key)?.to_owned();
-				Some(PlaygroundAction {
-					name,
-					description: clean_comment(&comment).replace("@action", ""),
-				})
-			} else {
-				None
+	for member in &node.body {
+		if let Some(method) = member.as_method()
+			&& let Some(name) = to_name(&method.key)
+			&& let Some(comment) = get_leading_comment(comments, method)
+			&& comment.contains("@action")
+		{
+			let comment = comment.replace("@action", "");
+			let mut parts = comment.splitn(2, "@extra");
+
+			let description = parts.next().unwrap().to_owned();
+			let mut extra = None;
+			if let Some(extra_str) = parts.next() {
+				extra = Some(serde_json::from_str::<ExtraValues>(extra_str)?);
 			}
-		})
-		.collect()
+
+			result.push(PlaygroundAction {
+				name: name.to_owned(),
+				description,
+				extra,
+			});
+		}
+	}
+
+	Ok(result)
 }
 
 fn to_name(prop_name: &ast::PropName) -> Option<&str> {
@@ -242,8 +285,12 @@ fn to_name(prop_name: &ast::PropName) -> Option<&str> {
 fn get_leading_comment<T: comments::Comments, N: swc_core::common::Spanned>(
 	comments: &T,
 	node: &N,
-) -> Option<comments::Comment> {
-	comments
-		.get_leading(node.span_lo())
-		.and_then(|comments| comments.into_iter().next())
+) -> Option<String> {
+	comments.with_leading(node.span_lo(), |c| {
+		if c.is_empty() {
+			None
+		} else {
+			Some(clean_comment(&c[0]))
+		}
+	})
 }
